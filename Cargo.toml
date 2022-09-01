@@ -1,0 +1,22 @@
+[package]
+name = "va"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.55"
+chrono = "0.4.19"
+env_logger = "0.9.0"
+lazy_static = "1.4.0"
+log = "0.4.14"
+png = "0.17.4"
+rand = "0.8.5"
+roots = "0.0.7"
+thiserror = "1.0.30"
+ttf-parser = "0.15.0"
+vulkano = "0.28.0"
+vulkano-shaders = "0.28.0"
+vulkano-win = "0.28.0"
+winit = "0.26.1"
