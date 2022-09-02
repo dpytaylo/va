@@ -42,16 +42,14 @@ enum Side {
 
 #[derive(Debug)]
 struct SegmentInfo {
-    left: i32,
-    right: i32,
+    pos: i32,
     side: Side,
 }
 
 impl SegmentInfo {
-    fn new(left: i32, right: i32, side: Side) -> Self {
+    fn new(pos: i32, side: Side) -> Self {
         Self { 
-            left,
-            right,
+            pos,
             side,
         }
     }
@@ -59,8 +57,7 @@ impl SegmentInfo {
 
 impl PartialEq for SegmentInfo {
     fn eq(&self, other: &Self) -> bool {
-        self.left == other.left
-            && self.right == other.right
+        self.pos == other.pos
     }
 }
 
@@ -68,12 +65,7 @@ impl Eq for SegmentInfo {}
 
 impl PartialOrd for SegmentInfo {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self.left.partial_cmp(&other.left) {
-            Some(Ordering::Equal) => {
-                self.right.partial_cmp(&other.right)
-            }
-            val => val,
-        }
+        self.pos.partial_cmp(&other.pos)
     }
 }
 
@@ -150,29 +142,6 @@ impl<'a> GlyphRender<'a> {
         else {
             SweepDirection::Counterclockwise
         };
-
-        // for segment in &segments {
-        //     let color: Vec4<u8> = Vec4::new(
-        //         rand::thread_rng().gen_range(50..=255),
-        //         rand::thread_rng().gen_range(50..=255),
-        //         rand::thread_rng().gen_range(50..=255),
-        //         255,
-        //     );
-        //     let color: Vec4<f32> = color.into();
-
-        //     let color = color / 255.0;
-
-        //     self.buffer.draw_dbg_line(
-        //         segment.p1.round().cast(), 
-        //         segment.p2.round().cast(), 
-        //         color * 0.5,
-        //     );
-        //     // self.buffer.draw_line(
-        //     //     segment.p1.round().cast(),
-        //     //     segment.p2.round().cast(),
-        //     //     color,
-        //     // );
-        // }
         
         self.outlines.push((direction, mem::replace(&mut self.points, Vec::new())));
     }
@@ -208,17 +177,6 @@ impl<'a> GlyphRender<'a> {
                         return;
                     }
 
-                    let y_f64: f64 = y.into();
-                    //let min_y = y_f64 - 0.49;
-                    //let max_y = y_f64 + 0.49;
-                    let (min_y, max_y) = (y_f64, y_f64);
-                    
-                    let equation = LineEquation::new(p1, p2);
-                    let mut iter = equation.iter_get_x_by_y([min_y, max_y].into_iter());
-
-                    let x1 = iter.next().unwrap().round() as i32;
-                    let x2 = iter.next().unwrap().round() as i32;
-
                     let side = if p1.y < y && p2.y > y 
                         || p1.y > y && p2.y < y 
                     {
@@ -231,8 +189,8 @@ impl<'a> GlyphRender<'a> {
                         Side::Above
                     };
 
-                    let (x1, x2) = if x1 <= x2 { (x1, x2) } else { (x2, x1) };
-                    buffer.push(SegmentInfo::new(x1, x2, side));
+                    let equation = LineEquation::new(p1, p2);
+                    buffer.push(SegmentInfo::new(equation.get_x_by_y(y.into()).round().cast(), side));
                 };
 
                 for i in 1..points.len() {
@@ -242,23 +200,17 @@ impl<'a> GlyphRender<'a> {
                 closure(*points.last().unwrap(), points[0]);
             }
             
-            if y == 155 {
-                dbg!(&cw_buffer);
-            }
-
             cw_buffer.sort_unstable();
             
             let mut remove_idx = Vec::new();
             for i in 1..cw_buffer.len() {
-                if (cw_buffer[i - 1].right >= cw_buffer[i].left)
+                if (cw_buffer[i - 1].pos == cw_buffer[i].pos)
                 && (
                     cw_buffer[i - 1].side == Side::Above && cw_buffer[i].side == Side::Below
                     || cw_buffer[i - 1].side == Side::Below && cw_buffer[i].side == Side::Above
                 )
                 {
                     remove_idx.push(i - 1);
-                    cw_buffer[i].left = cw_buffer[i - 1].left;
-                    cw_buffer[i].right = max(cw_buffer[i - 1].right, cw_buffer[i].right);
                 }
             }
 
@@ -272,8 +224,8 @@ impl<'a> GlyphRender<'a> {
             }
 
             for i in (0..cw_buffer.len()).step_by(2) {
-                if cw_buffer[i].right != cw_buffer[i + 1].left {
-                    self.buffer.draw_horizontal_line(cw_buffer[i].right, cw_buffer[i + 1].left, y, Vec4::from(1.0));
+                if cw_buffer[i].pos != cw_buffer[i + 1].pos {
+                    self.buffer.draw_horizontal_line(cw_buffer[i].pos, cw_buffer[i + 1].pos, y, Vec4::from(1.0));
                 }
             }
 
