@@ -1,30 +1,19 @@
 // abcdefghijklmnopqrstuvwxyz
-use std::cmp::{Ordering, min, max};
-use std::collections::BTreeSet;
-use std::f32::consts::FRAC_PI_2;
-use std::iter::{Map, Zip};
-use std::mem::{replace, self};
-use std::rc::Rc;
-use std::vec;
+use std::cmp::Ordering;
+use std::mem;
 
-use rand::Rng;
 use ttf_parser::OutlineBuilder;
 
-use crate::graphics::buffer::buffer2d::save_buffer;
 use crate::graphics::rasterizate::SimpleRasterizate;
-use crate::manager::Manager;
 use crate::utils::cast::Cast;
-use crate::utils::math::geometry::axis::{Axis, Axis2d};
-use crate::utils::math::geometry::curve::{QuadCurveIntPointsIter, CubeCurveIntPointsIter, self};
-use crate::utils::math::geometry::line::{self, Line, LinePointsIter, LinePointsByAxisIter, LineEquation};
-use crate::utils::math::geometry::rect::Rect;
+use crate::utils::math::geometry::curve;
+use crate::utils::math::geometry::line::LineEquation;
 use crate::utils::math::matrix::matrix3x3::Mat3x3;
 use crate::utils::math::vector::vector2::Vec2;
 use crate::utils::math::vector::vector3::Vec3;
 use crate::utils::math::vector::vector4::Vec4;
-use crate::utils::number::Number;
 
-use super::buffer::buffer2d::{Buffer2d, Buffer2dRead, Buffer2dSlice, Buffer2dMutSlice};
+use super::buffer::buffer2d::{Buffer2d, Buffer2dRead};
 use super::rasterizate::Rasterizate;
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
@@ -35,6 +24,7 @@ enum SweepDirection {
 
 #[derive(Debug, PartialEq)]
 enum Side {
+    None,
     Above,
     Below,
     Both,
@@ -75,8 +65,7 @@ impl Ord for SegmentInfo {
     }
 }
 
-pub struct GlyphRender<'a> {
-    buffer: &'a mut Buffer2d<Vec4<f32>>,
+pub struct GlyphRenderBuilder {
     transform: Mat3x3<f32>,
 
     points: Vec<Vec2<f32>>,
@@ -85,10 +74,9 @@ pub struct GlyphRender<'a> {
     was_closed: bool,
 }
 
-impl<'a> GlyphRender<'a> {
-    pub fn new(buffer: &'a mut Buffer2d<Vec4<f32>>, transform: Mat3x3<f32>) -> Self {
+impl GlyphRenderBuilder {
+    pub fn new(transform: Mat3x3<f32>) -> Self {
         Self {
-            buffer,
             transform,
 
             points: Vec::new(),
@@ -146,157 +134,14 @@ impl<'a> GlyphRender<'a> {
         self.outlines.push((direction, mem::replace(&mut self.points, Vec::new())));
     }
 
-    pub fn rasterizate(&mut self) {
-        for y in 0..self.buffer.height() as i32 {
-            let mut cw_buffer = Vec::new();
-            let mut cc_buffer = Vec::new();
-
-            for (dir, points) in &self.outlines {
-                let buffer = match dir {
-                    SweepDirection::Clockwise => &mut cw_buffer,
-                    SweepDirection::Counterclockwise => &mut cc_buffer,
-                };
-
-                let mut closure = |p1: Vec2<f32>, p2: Vec2<f32>| {
-                    let p1: Vec2<i32> = p1.round().cast();
-                    let p2: Vec2<i32> = p2.round().cast();
-
-                    // Ignore horizontal segments
-                    if p1.y == p2.y {
-                        return;
-                    }
-
-                    let (min, max) = if p1.y <= p2.y {
-                        (p1.y, p2.y)
-                    }
-                    else {
-                        (p2.y, p1.y)
-                    };
-                    
-                    if y < min || y > max {
-                        return;
-                    }
-
-                    let side = if p1.y < y && p2.y > y 
-                        || p1.y > y && p2.y < y 
-                    {
-                        Side::Both
-                    }
-                    else if p1.y >= y && p2.y >= y {
-                        Side::Below // y coordinate down
-                    }
-                    else {
-                        Side::Above
-                    };
-
-                    let equation = LineEquation::new(p1, p2);
-                    buffer.push(SegmentInfo::new(equation.get_x_by_y(y.into()).round().cast(), side));
-                };
-
-                for i in 1..points.len() {
-                    closure(points[i - 1], points[i]);
-                }
-
-                closure(*points.last().unwrap(), points[0]);
-            }
-            
-            cw_buffer.sort_unstable();
-            
-            let mut remove_idx = Vec::new();
-            for i in 1..cw_buffer.len() {
-                if (cw_buffer[i - 1].pos == cw_buffer[i].pos)
-                && (
-                    cw_buffer[i - 1].side == Side::Above && cw_buffer[i].side == Side::Below
-                    || cw_buffer[i - 1].side == Side::Below && cw_buffer[i].side == Side::Above
-                )
-                {
-                    remove_idx.push(i - 1);
-                }
-            }
-
-            for idx in remove_idx.into_iter().rev() {
-                cw_buffer.remove(idx);
-            }
-
-            if cw_buffer.len() % 2 == 1 {
-                dbg!();
-                continue;
-            }
-
-            for i in (0..cw_buffer.len()).step_by(2) {
-                if cw_buffer[i].pos != cw_buffer[i + 1].pos {
-                    self.buffer.draw_horizontal_line(cw_buffer[i].pos, cw_buffer[i + 1].pos, y, Vec4::from(1.0));
-                }
-            }
-
-            /*
-            cc_buffer.sort_unstable();
-
-            let mut remove_idx = Vec::new();
-            for i in 1..cc_buffer.len() {
-                if (
-                    cc_buffer[i - 1].left == cc_buffer[i].left
-                    || cc_buffer[i - 1].right == cc_buffer[i].right
-                )
-                && (
-                    cc_buffer[i - 1].side == Side::Above && cc_buffer[i].side == Side::Below
-                    || cc_buffer[i - 1].side == Side::Below && cc_buffer[i].side == Side::Above
-                )
-                {
-                    remove_idx.push(i);
-                }
-            }
-
-            for idx in remove_idx.into_iter().rev() {
-                cc_buffer.remove(idx);
-            }
-
-            if cc_buffer.len() % 2 == 1 {
-                dbg!();
-                continue;
-            }
-
-            for i in (0..cc_buffer.len()).step_by(2) {
-                if cc_buffer[i + 1].left <= cc_buffer[i].right + 1 {
-                    continue;
-                }
-
-                if cc_buffer[i].right != cc_buffer[i + 1].left {
-                    self.buffer.draw_horizontal_line(
-                        cc_buffer[i].right + 1, 
-                        cc_buffer[i + 1].left - 1, 
-                        y, 
-                        Vec4::new(0.0, 0.0, 0.0, 1.0),
-                    );
-                }
-            }
-            */
+    pub fn build(self) -> GlyphRender {
+        GlyphRender { 
+            outlines: self.outlines,
         }
-
-        // for (_, points) in &self.outlines {
-        //     for i in 1..points.len() {
-        //         self.buffer.draw_line(points[i - 1].round().cast(), points[i].round().cast(), Vec4::from(1.0));
-        //     }
-
-        //     self.buffer.draw_line((*points.last().unwrap()).round().cast(), points[0].round().cast(), Vec4::from(1.0));
-        // }
-
-        for (_, points) in &self.outlines {
-            for &point in points {
-                self.buffer.draw_point(point.round().cast(), Vec4::new(0.0, 1.0, 0.0, 1.0));
-            }
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.points.clear();
-        self.prev_point = Vec2::default();
-        self.outlines.clear();
-        self.was_closed = false;
     }
 }
 
-impl<'a> OutlineBuilder for GlyphRender<'a> {
+impl OutlineBuilder for GlyphRenderBuilder {
     fn move_to(&mut self, x: f32, y: f32) {
         self.prev_point = self.do_transform(Vec2::new(x, y));
     }
@@ -337,5 +182,182 @@ impl<'a> OutlineBuilder for GlyphRender<'a> {
     fn close(&mut self) {
         self.push_outline();
         self.was_closed = true;
+    }
+}
+
+pub struct GlyphRender {
+    outlines: Vec<(SweepDirection, Vec<Vec2<f32>>)>,
+}
+
+impl GlyphRender {
+    pub fn rasterizate(&self, buffer: &mut Buffer2d<Vec4<f32>>) {
+        for y in 0..buffer.height() as i32 {
+            let mut cw_buffer = Vec::new();
+            let mut cc_buffer = Vec::new();
+
+            for (dir, points) in &self.outlines {
+                let buffer = match dir {
+                    SweepDirection::Clockwise => &mut cw_buffer,
+                    SweepDirection::Counterclockwise => &mut cc_buffer,
+                };
+
+                let mut none_points = Vec::new();
+
+                let mut closure = |p1: Vec2<f32>, p2: Vec2<f32>| {
+                    let p1: Vec2<i32> = p1.round().cast();
+                    let p2: Vec2<i32> = p2.round().cast();
+
+                    let (min, max) = if p1.y <= p2.y {
+                        (p1.y, p2.y)
+                    }
+                    else {
+                        (p2.y, p1.y)
+                    };
+                    
+                    if y < min || y > max {
+                        return;
+                    }
+
+                    if p1.y == p2.y {
+                        buffer.push(SegmentInfo::new(p1.x, Side::None));
+                        buffer.push(SegmentInfo::new(p2.x, Side::None));
+                        none_points.push(buffer.len() - 2);
+                        none_points.push(buffer.len() - 1);
+                        return;
+                    }
+
+                    let side = if p1.y < y && p2.y > y 
+                        || p1.y > y && p2.y < y 
+                    {
+                        Side::Both
+                    }
+                    else if p1.y >= y && p2.y >= y {
+                        Side::Below // y coordinate down
+                    }
+                    else {
+                        Side::Above
+                    };
+
+                    let equation = LineEquation::new(p1, p2);
+                    buffer.push(SegmentInfo::new(equation.get_x_by_y(y.into()).round().cast(), side));
+                };
+
+                for i in 1..points.len() {
+                    closure(points[i - 1], points[i]);
+                }
+
+                closure(*points.last().unwrap(), points[0]);
+
+                dbg!(y);
+                dbg!(&dir);
+                dbg!(&buffer);
+                dbg!(&none_points);
+
+                for idx in none_points {
+                    if idx == 0 {
+                        buffer.last_mut().unwrap().side = Side::None;
+                        buffer[1].side = Side::None;
+                    }
+                    else if idx == buffer.len() - 1 {
+                        let len = buffer.len();
+                        buffer[len - 1].side = Side::None;
+                        buffer[0].side = Side::None;
+                    }
+                    else {
+                        buffer[idx - 1].side = Side::None;
+                        buffer[idx + 1].side = Side::None;
+                    }
+                }
+            }
+
+            // if y == 11 {
+            //     dbg!(&cw_buffer);
+            //     dbg!(&cc_buffer);
+            // }
+
+            cw_buffer.sort_unstable();
+            
+            let mut remove_idx = Vec::new();
+            for i in 1..cw_buffer.len() {
+                if (
+                    (cw_buffer[i - 1].pos == cw_buffer[i].pos)
+                    && (
+                        cw_buffer[i - 1].side == Side::Above && cw_buffer[i].side == Side::Below
+                        || cw_buffer[i - 1].side == Side::Below && cw_buffer[i].side == Side::Above
+                    )
+                )
+                    || cw_buffer[i - 1].side == Side::None && cw_buffer[i].side == Side::None
+                {
+                    remove_idx.push(i - 1);
+                }
+            }
+
+            for idx in remove_idx.into_iter().rev() {
+                cw_buffer.remove(idx);
+            }
+
+            dbg!(&cw_buffer);
+            panic!();
+
+            // if cw_buffer.len() % 2 == 1 {
+            //     continue;
+            // }
+
+            for i in (0..cw_buffer.len()).step_by(2) {
+                if cw_buffer[i].pos != cw_buffer[i + 1].pos {
+                    buffer.draw_horizontal_line(cw_buffer[i].pos, cw_buffer[i + 1].pos, y, Vec4::from(1.0));
+                }
+            }
+
+            cc_buffer.sort_unstable();
+            
+            let mut remove_idx = Vec::new();
+            for i in 1..cc_buffer.len() {
+                if (
+                    (cc_buffer[i - 1].pos == cc_buffer[i].pos)
+                    && (
+                        cc_buffer[i - 1].side == Side::Above && cc_buffer[i].side == Side::Below
+                        || cc_buffer[i - 1].side == Side::Below && cc_buffer[i].side == Side::Above
+                    )
+                )
+                    || cc_buffer[i - 1].side == Side::None && cc_buffer[i].side == Side::None
+                {
+                    remove_idx.push(i - 1);
+                }
+            }
+
+            for idx in remove_idx.into_iter().rev() {
+                cc_buffer.remove(idx);
+            }
+
+            if cc_buffer.len() % 2 == 1 {
+                continue;
+            }
+
+            for i in (0..cc_buffer.len()).step_by(2) {
+                if cc_buffer[i].pos + 1 < cc_buffer[i + 1].pos {
+                    buffer.draw_horizontal_line(
+                        cc_buffer[i].pos + 1,
+                        cc_buffer[i + 1].pos - 1, 
+                        y, 
+                        Vec4::new(0.0, 0.0, 0.0, 1.0)
+                    );
+                }
+            }
+        }
+
+        // for (_, points) in &self.outlines {
+        //     for i in 1..points.len() {
+        //         buffer.draw_line(points[i - 1].round().cast(), points[i].round().cast(), Vec4::from(1.0));
+        //     }
+
+        //     buffer.draw_line((*points.last().unwrap()).round().cast(), points[0].round().cast(), Vec4::from(1.0));
+        // }
+
+        for (_, points) in &self.outlines {
+            for &point in points {
+                buffer.draw_point(point.round().cast(), Vec4::new(0.0, 1.0, 0.0, 1.0));
+            }
+        }
     }
 }

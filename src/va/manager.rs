@@ -18,7 +18,7 @@ use vulkano::image::{ImageDimensions, ImmutableImage, MipmapsCount};
 use vulkano::shader::{ShaderCreationError, ShaderModule};
 
 use crate::graphics::buffer::buffer2d::{Buffer2d, Buffer2dRead, save_buffer};
-use crate::graphics::glyph_render::GlyphRender;
+use crate::graphics::glyph_render::{GlyphRender, GlyphRenderBuilder};
 use crate::graphics::image::save_image;
 use crate::graphics::rasterizate::{Rasterizate, SimpleRasterizate};
 use crate::utils::cast::Cast;
@@ -245,7 +245,7 @@ impl Manager {
         let k = (px_size / capital_height) as f32;
 
         let mut buffer2d = Buffer2d::new(
-            Vec2::new(200, 200),
+            Vec2::new(800, 200),
             Vec4::from(0.0),
         );
 
@@ -254,7 +254,7 @@ impl Manager {
                 
         let mut offset = 0.0;
         //for char in ('A'..='Z').chain('a'..='z') {
-        for char in 'O'..='O' {
+        for char in 'E'..='E' {
             let glyph_id = face.glyph_index(char).context("invalid glyph index")?;
             let bounding_box = face.glyph_bounding_box(glyph_id).context("invalid glyph bounding box")?;
     
@@ -291,19 +291,20 @@ impl Manager {
 
             dbg!(bounding_box);
     
-            let mut glyph_render = GlyphRender::new(&mut buffer2d, transform);
+            let mut builder = GlyphRenderBuilder::new(transform);
             loop {
                 let _ = face.outline_glyph(
                     glyph_id, 
-                    &mut glyph_render
+                    &mut builder
                 ).context("no raster glyph image")?;
     
-                if glyph_render.was_closed() {
+                if builder.was_closed() {
                     break;
                 }
             };
 
-            glyph_render.rasterizate();
+            let render = builder.build();
+            render.rasterizate(&mut buffer2d);
 
             offset += bounding_box.p2.x;
         }
