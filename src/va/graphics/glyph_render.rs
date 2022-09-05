@@ -193,15 +193,16 @@ impl GlyphRender {
     pub fn rasterizate(&self, buffer: &mut Buffer2d<Vec4<f32>>) {
         for y in 0..buffer.height() as i32 {
             let mut cw_buffer = Vec::new();
+            let mut none_cw_points = Vec::new();
+
             let mut cc_buffer = Vec::new();
+            let mut none_cc_points = Vec::new();
 
             for (dir, points) in &self.outlines {
-                let buffer = match dir {
-                    SweepDirection::Clockwise => &mut cw_buffer,
-                    SweepDirection::Counterclockwise => &mut cc_buffer,
+                let (buffer, none_points) = match dir {
+                    SweepDirection::Clockwise => (&mut cw_buffer, &mut none_cw_points),
+                    SweepDirection::Counterclockwise => (&mut cc_buffer, &mut none_cc_points),
                 };
-
-                let mut none_points = Vec::new();
 
                 let mut closure = |p1: Vec2<f32>, p2: Vec2<f32>| {
                     let p1: Vec2<i32> = p1.round().cast();
@@ -219,10 +220,8 @@ impl GlyphRender {
                     }
 
                     if p1.y == p2.y {
-                        buffer.push(SegmentInfo::new(p1.x, Side::None));
-                        buffer.push(SegmentInfo::new(p2.x, Side::None));
-                        none_points.push(buffer.len() - 2);
-                        none_points.push(buffer.len() - 1);
+                        none_points.push(p1.x);
+                        none_points.push(p2.x);
                         return;
                     }
 
@@ -247,27 +246,6 @@ impl GlyphRender {
                 }
 
                 closure(*points.last().unwrap(), points[0]);
-
-                dbg!(y);
-                dbg!(&dir);
-                dbg!(&buffer);
-                dbg!(&none_points);
-
-                for idx in none_points {
-                    if idx == 0 {
-                        buffer.last_mut().unwrap().side = Side::None;
-                        buffer[1].side = Side::None;
-                    }
-                    else if idx == buffer.len() - 1 {
-                        let len = buffer.len();
-                        buffer[len - 1].side = Side::None;
-                        buffer[0].side = Side::None;
-                    }
-                    else {
-                        buffer[idx - 1].side = Side::None;
-                        buffer[idx + 1].side = Side::None;
-                    }
-                }
             }
 
             // if y == 11 {
@@ -275,33 +253,10 @@ impl GlyphRender {
             //     dbg!(&cc_buffer);
             // }
 
-            cw_buffer.sort_unstable();
-            
-            let mut remove_idx = Vec::new();
-            for i in 1..cw_buffer.len() {
-                if (
-                    (cw_buffer[i - 1].pos == cw_buffer[i].pos)
-                    && (
-                        cw_buffer[i - 1].side == Side::Above && cw_buffer[i].side == Side::Below
-                        || cw_buffer[i - 1].side == Side::Below && cw_buffer[i].side == Side::Above
-                    )
-                )
-                    || cw_buffer[i - 1].side == Side::None && cw_buffer[i].side == Side::None
-                {
-                    remove_idx.push(i - 1);
-                }
-            }
-
-            for idx in remove_idx.into_iter().rev() {
-                cw_buffer.remove(idx);
-            }
-
-            dbg!(&cw_buffer);
-            panic!();
-
-            // if cw_buffer.len() % 2 == 1 {
-            //     continue;
-            // }
+            let cw_buffer = match Self::prepare_for_rendering(cw_buffer, none_cw_points) {
+                Ok(val) => val,
+                Err(_) => continue,
+            };
 
             for i in (0..cw_buffer.len()).step_by(2) {
                 if cw_buffer[i].pos != cw_buffer[i + 1].pos {
@@ -359,5 +314,91 @@ impl GlyphRender {
                 buffer.draw_point(point.round().cast(), Vec4::new(0.0, 1.0, 0.0, 1.0));
             }
         }
+    }
+
+    fn prepare_for_rendering(mut buffer: Vec<SegmentInfo>, mut none_points: Vec<i32>) -> Result<Vec<SegmentInfo>, ()> {
+        buffer.sort_unstable();
+            
+        let mut remove_idx = Vec::new();
+        for i in 1..buffer.len() {
+            if (buffer[i - 1].pos == buffer[i].pos)
+                && (
+                    buffer[i - 1].side == Side::Above && buffer[i].side == Side::Below
+                    || buffer[i - 1].side == Side::Below && buffer[i].side == Side::Above
+                )
+            {
+                remove_idx.push(i - 1);
+            }
+        }
+
+        for idx in remove_idx.into_iter().rev() {
+            buffer.remove(idx);
+        }
+
+        none_points.sort_unstable();
+        buffer.extend(none_points.into_iter().map(|val| SegmentInfo::new(val, Side::None)));
+        buffer.sort_unstable();
+
+        // Start
+        let mut last_i = None;
+        for i in 0..buffer.len() {
+            if buffer[i].side != Side::None {
+                break;
+            }
+
+            last_i = Some(i);
+        }
+
+        if let Some(idx) = last_i {
+            buffer.drain(1..=idx);
+        }
+
+        // End
+        let mut last_i = None;
+        for i in (0..buffer.len()).rev() {
+            if buffer[i].side != Side::None {
+                break;
+            }
+
+            last_i = Some(i);
+        }
+
+        if let Some(idx) = last_i {
+            buffer.drain(idx..buffer.len() - 1);
+        }
+
+        // Middle
+        let mut i = 0;
+        while i < buffer.len() {
+            let mut start_i = None;
+            for j in i..buffer.len() {
+                if buffer[j].side == Side::None {
+                    start_i = Some(i);
+                    break;
+                }
+            }
+
+            if start_i.is_none() {
+                break;
+            }
+
+            for j in start_i.unwrap() + 1..buffer.len() {
+                if buffer[j].side != Side::None {
+                    if start_i.unwrap() < i {
+                        buffer.drain(start_i.unwrap() + 1..i); // Removing Side::None between first and last
+                    }
+                    
+                    break;
+                }
+            }
+
+            i += 1;
+        }
+        
+        if buffer.len() % 2 == 1 {
+            return Err(());
+        }
+
+        Ok(buffer)
     }
 }
