@@ -254,7 +254,7 @@ impl Manager {
                 
         let mut offset = 0.0;
         //for char in ('A'..='Z').chain('a'..='z') {
-        for char in 'E'..='E' {
+        for char in 'C'..='C' {
             let glyph_id = face.glyph_index(char).context("invalid glyph index")?;
             let bounding_box = face.glyph_bounding_box(glyph_id).context("invalid glyph bounding box")?;
     

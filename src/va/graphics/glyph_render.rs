@@ -1,6 +1,7 @@
 // abcdefghijklmnopqrstuvwxyz
 use std::cmp::Ordering;
 use std::mem;
+use std::ops::Index;
 
 use ttf_parser::OutlineBuilder;
 
@@ -248,15 +249,20 @@ impl GlyphRender {
                 closure(*points.last().unwrap(), points[0]);
             }
 
-            // if y == 11 {
-            //     dbg!(&cw_buffer);
-            //     dbg!(&cc_buffer);
-            // }
+            if y == 92 {
+                dbg!(&cw_buffer);
+                dbg!(&none_cw_points);
+                dbg!(&cc_buffer);
+            }
 
-            let cw_buffer = match Self::prepare_for_rendering(cw_buffer, none_cw_points) {
+            let cw_buffer = match Self::prepare_for_rendering(y, cw_buffer, none_cw_points) {
                 Ok(val) => val,
                 Err(_) => continue,
             };
+
+            if y == 92 {
+                dbg!(&cw_buffer);
+            }
 
             for i in (0..cw_buffer.len()).step_by(2) {
                 if cw_buffer[i].pos != cw_buffer[i + 1].pos {
@@ -266,28 +272,33 @@ impl GlyphRender {
 
             cc_buffer.sort_unstable();
             
-            let mut remove_idx = Vec::new();
-            for i in 1..cc_buffer.len() {
-                if (
-                    (cc_buffer[i - 1].pos == cc_buffer[i].pos)
-                    && (
-                        cc_buffer[i - 1].side == Side::Above && cc_buffer[i].side == Side::Below
-                        || cc_buffer[i - 1].side == Side::Below && cc_buffer[i].side == Side::Above
-                    )
-                )
-                    || cc_buffer[i - 1].side == Side::None && cc_buffer[i].side == Side::None
-                {
-                    remove_idx.push(i - 1);
-                }
-            }
+            // let mut remove_idx = Vec::new();
+            // for i in 1..cc_buffer.len() {
+            //     if (
+            //         (cc_buffer[i - 1].pos == cc_buffer[i].pos)
+            //         && (
+            //             cc_buffer[i - 1].side == Side::Above && cc_buffer[i].side == Side::Below
+            //             || cc_buffer[i - 1].side == Side::Below && cc_buffer[i].side == Side::Above
+            //         )
+            //     )
+            //         || cc_buffer[i - 1].side == Side::None && cc_buffer[i].side == Side::None
+            //     {
+            //         remove_idx.push(i - 1);
+            //     }
+            // }
 
-            for idx in remove_idx.into_iter().rev() {
-                cc_buffer.remove(idx);
-            }
+            // for idx in remove_idx.into_iter().rev() {
+            //     cc_buffer.remove(idx);
+            // }
 
-            if cc_buffer.len() % 2 == 1 {
-                continue;
-            }
+            // if cc_buffer.len() % 2 == 1 {
+            //     continue;
+            // }
+
+            let cc_buffer = match Self::prepare_for_rendering(y, cc_buffer, none_cc_points) {
+                Ok(val) => val,
+                Err(_) => continue,
+            };
 
             for i in (0..cc_buffer.len()).step_by(2) {
                 if cc_buffer[i].pos + 1 < cc_buffer[i + 1].pos {
@@ -316,7 +327,7 @@ impl GlyphRender {
         }
     }
 
-    fn prepare_for_rendering(mut buffer: Vec<SegmentInfo>, mut none_points: Vec<i32>) -> Result<Vec<SegmentInfo>, ()> {
+    fn prepare_for_rendering(y: i32, mut buffer: Vec<SegmentInfo>, mut none_points: Vec<i32>) -> Result<Vec<SegmentInfo>, ()> {
         buffer.sort_unstable();
             
         let mut remove_idx = Vec::new();
@@ -336,6 +347,30 @@ impl GlyphRender {
         }
 
         none_points.sort_unstable();
+
+        // let mut j = buffer.len();
+        // for &none_point in none_points.iter().rev() {
+        //     while j > 0 {
+        //         if buffer[j - 1].pos == none_point {
+        //             buffer.remove(j - 1);
+        //             j -= 1;
+        //             break;
+        //         }
+
+        //         j -= 1;
+        //     }
+        // }
+
+        let mut tmp_none_points = none_points.clone();
+        for i in (0..buffer.len()).rev() {
+            if let Some(idx) = tmp_none_points.iter().rev().position(|&val| val == buffer[i].pos) {
+                dbg!(idx);
+                dbg!(tmp_none_points.len());
+                tmp_none_points.remove(tmp_none_points.len() - 1 - idx);
+                buffer.remove(i);
+            }
+        }
+
         buffer.extend(none_points.into_iter().map(|val| SegmentInfo::new(val, Side::None)));
         buffer.sort_unstable();
 
@@ -368,34 +403,66 @@ impl GlyphRender {
         }
 
         // Middle
-        let mut i = 0;
-        while i < buffer.len() {
-            let mut start_i = None;
-            for j in i..buffer.len() {
-                if buffer[j].side == Side::None {
-                    start_i = Some(i);
-                    break;
-                }
-            }
+        // let mut i = 0;
+        // while i < buffer.len() {
+        //     let mut start_i = None;
+        //     for j in i..buffer.len() {
+        //         if buffer[j].side == Side::None {
+        //             start_i = Some(i);
+        //             break;
+        //         }
+        //     }
 
-            if start_i.is_none() {
-                break;
-            }
+        //     if start_i.is_none() {
+        //         break;
+        //     }
 
-            for j in start_i.unwrap() + 1..buffer.len() {
-                if buffer[j].side != Side::None {
-                    if start_i.unwrap() < i {
-                        buffer.drain(start_i.unwrap() + 1..i); // Removing Side::None between first and last
-                    }
+        //     for j in start_i.unwrap() + 1..buffer.len() {
+        //         if buffer[j].side != Side::None {
+        //             if start_i.unwrap() < i {
+        //                 buffer.drain(start_i.unwrap() + 1..i); // Removing Side::None between first and last
+        //             }
                     
+        //             break;
+        //         }
+        //     }
+
+        //     i += 1;
+        // }
+
+        let mut i = buffer.len();
+        while i > 1 {
+            let mut start_idx = None;
+            for j in (2..=i).rev() {
+                if buffer[j - 1].side == Side::None {
+                    start_idx = Some(j - 1);
                     break;
                 }
+                
+                i -= 1;
             }
 
-            i += 1;
+            if start_idx.is_none() {
+                continue;
+            }
+
+            for j in (1..i).rev() {
+                if buffer[j - 1].side != Side::None {
+                    break;
+                }
+
+                i -= 1;
+            }
+
+            if i < start_idx.unwrap() {
+                buffer.drain(i..start_idx.unwrap());
+            }
+
+            i -= 1;
         }
         
         if buffer.len() % 2 == 1 {
+            dbg!(&buffer);
             return Err(());
         }
 
