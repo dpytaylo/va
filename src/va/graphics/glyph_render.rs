@@ -1,6 +1,7 @@
 // abcdefghijklmnopqrstuvwxyz
-use std::cmp::Ordering;
+use std::cmp::{Ordering, max, min};
 use std::mem;
+use std::num::NonZeroUsize;
 use std::ops::Index;
 
 use ttf_parser::OutlineBuilder;
@@ -25,42 +26,54 @@ enum SweepDirection {
 
 #[derive(Debug, PartialEq)]
 enum Side {
-    None,
     Above,
     Below,
-    Both,
+    Other,
 }
 
 #[derive(Debug)]
-struct SegmentInfo {
+struct PointInfo {
+    idx: usize,
     pos: i32,
     side: Side,
 }
 
-impl SegmentInfo {
-    fn new(pos: i32, side: Side) -> Self {
+impl PointInfo {
+    fn new(idx: usize, pos: i32, side: Side) -> Self {
         Self { 
+            idx,
             pos,
             side,
         }
     }
 }
 
-impl PartialEq for SegmentInfo {
+impl PartialEq for PointInfo {
     fn eq(&self, other: &Self) -> bool {
         self.pos == other.pos
+            && self.side == other.side
     }
 }
 
-impl Eq for SegmentInfo {}
+impl Eq for PointInfo {}
 
-impl PartialOrd for SegmentInfo {
+impl PartialOrd for PointInfo {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.pos.partial_cmp(&other.pos)
+        match self.pos.partial_cmp(&other.pos) {
+            Some(val) => {
+                match val {
+                    Ordering::Equal => {
+                        (self.side as usize).partial_cmp(&(other.side as usize))
+                    }
+                    val => Some(val),
+                }
+            }
+            None => None,
+        }
     }
 }
 
-impl Ord for SegmentInfo {
+impl Ord for PointInfo {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
     }
@@ -193,19 +206,13 @@ pub struct GlyphRender {
 impl GlyphRender {
     pub fn rasterizate(&self, buffer: &mut Buffer2d<Vec4<f32>>) {
         for y in 0..buffer.height() as i32 {
-            let mut cw_buffer = Vec::new();
-            let mut none_cw_points = Vec::new();
-
-            let mut cc_buffer = Vec::new();
-            let mut none_cc_points = Vec::new();
+            let mut cw_buffers = Vec::new();
+            let mut cc_buffers = Vec::new();
 
             for (dir, points) in &self.outlines {
-                let (buffer, none_points) = match dir {
-                    SweepDirection::Clockwise => (&mut cw_buffer, &mut none_cw_points),
-                    SweepDirection::Counterclockwise => (&mut cc_buffer, &mut none_cc_points),
-                };
+                let mut buffer = Vec::new();
 
-                let mut closure = |p1: Vec2<f32>, p2: Vec2<f32>| {
+                let mut closure = |idx: usize, p1: Vec2<f32>, p2: Vec2<f32>| {
                     let p1: Vec2<i32> = p1.round().cast();
                     let p2: Vec2<i32> = p2.round().cast();
 
@@ -221,15 +228,15 @@ impl GlyphRender {
                     }
 
                     if p1.y == p2.y {
-                        none_points.push(p1.x);
-                        none_points.push(p2.x);
+                        buffer.push(PointInfo::new(idx, p1.x, Side::Other));
+                        buffer.push(PointInfo::new(idx, p2.x, Side::Other));
                         return;
                     }
 
                     let side = if p1.y < y && p2.y > y 
                         || p1.y > y && p2.y < y 
                     {
-                        Side::Both
+                        Side::Other
                     }
                     else if p1.y >= y && p2.y >= y {
                         Side::Below // y coordinate down
@@ -239,75 +246,71 @@ impl GlyphRender {
                     };
 
                     let equation = LineEquation::new(p1, p2);
-                    buffer.push(SegmentInfo::new(equation.get_x_by_y(y.into()).round().cast(), side));
+                    buffer.push(PointInfo::new(idx, equation.get_x_by_y(y.into()).round().cast(), side));
                 };
 
+                let mut idx = 0;
                 for i in 1..points.len() {
-                    closure(points[i - 1], points[i]);
+                    closure(idx, points[i - 1], points[i]);
+                    idx += 1;
                 }
 
-                closure(*points.last().unwrap(), points[0]);
+                closure(idx, *points.last().unwrap(), points[0]);
+
+                let buffers = match dir {
+                    SweepDirection::Clockwise => &mut cw_buffers,
+                    SweepDirection::Counterclockwise => &mut cc_buffers,
+                };
+
+                if !buffer.is_empty() {
+                    buffers.push(buffer);
+                }                
             }
 
-            if y == 92 {
-                dbg!(&cw_buffer);
-                dbg!(&none_cw_points);
-                dbg!(&cc_buffer);
-            }
+            for cw_buffer in cw_buffers {
+                if y == 11 {
+                    dbg!(&cw_buffer);
+                }
 
-            let cw_buffer = match Self::prepare_for_rendering(y, cw_buffer, none_cw_points) {
-                Ok(val) => val,
-                Err(_) => continue,
-            };
+                let max_idx = cw_buffer.len() - 1;
+                let cw_buffer = match Self::prepare_for_rendering(y, cw_buffer, max_idx) {
+                    Ok(val) => val,
+                    Err(_) => continue,
+                };
 
-            if y == 92 {
-                dbg!(&cw_buffer);
-            }
-
-            for i in (0..cw_buffer.len()).step_by(2) {
-                if cw_buffer[i].pos != cw_buffer[i + 1].pos {
+                if y == 11 {
+                    dbg!(&cw_buffer);
+                }
+    
+                for i in (0..cw_buffer.len()).step_by(2) {
                     buffer.draw_horizontal_line(cw_buffer[i].pos, cw_buffer[i + 1].pos, y, Vec4::from(1.0));
                 }
             }
 
-            cc_buffer.sort_unstable();
-            
-            // let mut remove_idx = Vec::new();
-            // for i in 1..cc_buffer.len() {
-            //     if (
-            //         (cc_buffer[i - 1].pos == cc_buffer[i].pos)
-            //         && (
-            //             cc_buffer[i - 1].side == Side::Above && cc_buffer[i].side == Side::Below
-            //             || cc_buffer[i - 1].side == Side::Below && cc_buffer[i].side == Side::Above
-            //         )
-            //     )
-            //         || cc_buffer[i - 1].side == Side::None && cc_buffer[i].side == Side::None
-            //     {
-            //         remove_idx.push(i - 1);
-            //     }
-            // }
+            for cc_buffer in cc_buffers {
+                if y == 11 {
+                    dbg!(&cc_buffer);
+                }
 
-            // for idx in remove_idx.into_iter().rev() {
-            //     cc_buffer.remove(idx);
-            // }
+                let max_idx = cc_buffer.len() - 1;
+                let cc_buffer = match Self::prepare_for_rendering(y, cc_buffer, max_idx) {
+                    Ok(val) => val,
+                    Err(_) => continue,
+                };
 
-            // if cc_buffer.len() % 2 == 1 {
-            //     continue;
-            // }
+                if y == 11 {
+                    dbg!(&cc_buffer);
+                }
 
-            let cc_buffer = match Self::prepare_for_rendering(y, cc_buffer, none_cc_points) {
-                Ok(val) => val,
-                Err(_) => continue,
-            };
-
-            for i in (0..cc_buffer.len()).step_by(2) {
-                if cc_buffer[i].pos + 1 < cc_buffer[i + 1].pos {
-                    buffer.draw_horizontal_line(
-                        cc_buffer[i].pos + 1,
-                        cc_buffer[i + 1].pos - 1, 
-                        y, 
-                        Vec4::new(0.0, 0.0, 0.0, 1.0)
-                    );
+                for i in (0..cc_buffer.len()).step_by(2) {
+                    if cc_buffer[i].pos + 1 < cc_buffer[i + 1].pos {
+                        buffer.draw_horizontal_line(
+                            cc_buffer[i].pos + 1,
+                            cc_buffer[i + 1].pos - 1, 
+                            y, 
+                            Vec4::new(0.0, 0.0, 0.0, 1.0)
+                        );
+                    }
                 }
             }
         }
@@ -327,7 +330,7 @@ impl GlyphRender {
         }
     }
 
-    fn prepare_for_rendering(y: i32, mut buffer: Vec<SegmentInfo>, mut none_points: Vec<i32>) -> Result<Vec<SegmentInfo>, ()> {
+    fn prepare_for_rendering(y: i32, mut buffer: Vec<PointInfo>, max_idx: usize) -> Result<Vec<PointInfo>, ()> {
         buffer.sort_unstable();
             
         let mut remove_idx = Vec::new();
@@ -346,123 +349,23 @@ impl GlyphRender {
             buffer.remove(idx);
         }
 
-        none_points.sort_unstable();
+        let mut first_idx = None;
+        for i in (1..buffer.len()).rev() {
+            let diff = max(buffer[i].idx, buffer[i - 1].idx) - min(buffer[i].idx, buffer[i - 1].idx); // because usize type
 
-        // let mut j = buffer.len();
-        // for &none_point in none_points.iter().rev() {
-        //     while j > 0 {
-        //         if buffer[j - 1].pos == none_point {
-        //             buffer.remove(j - 1);
-        //             j -= 1;
-        //             break;
-        //         }
-
-        //         j -= 1;
-        //     }
-        // }
-
-        let mut tmp_none_points = none_points.clone();
-        for i in (0..buffer.len()).rev() {
-            if let Some(idx) = tmp_none_points.iter().rev().position(|&val| val == buffer[i].pos) {
-                dbg!(idx);
-                dbg!(tmp_none_points.len());
-                tmp_none_points.remove(tmp_none_points.len() - 1 - idx);
-                buffer.remove(i);
-            }
-        }
-
-        buffer.extend(none_points.into_iter().map(|val| SegmentInfo::new(val, Side::None)));
-        buffer.sort_unstable();
-
-        // Start
-        let mut last_i = None;
-        for i in 0..buffer.len() {
-            if buffer[i].side != Side::None {
-                break;
-            }
-
-            last_i = Some(i);
-        }
-
-        if let Some(idx) = last_i {
-            buffer.drain(1..=idx);
-        }
-
-        // End
-        let mut last_i = None;
-        for i in (0..buffer.len()).rev() {
-            if buffer[i].side != Side::None {
-                break;
-            }
-
-            last_i = Some(i);
-        }
-
-        if let Some(idx) = last_i {
-            buffer.drain(idx..buffer.len() - 1);
-        }
-
-        // Middle
-        // let mut i = 0;
-        // while i < buffer.len() {
-        //     let mut start_i = None;
-        //     for j in i..buffer.len() {
-        //         if buffer[j].side == Side::None {
-        //             start_i = Some(i);
-        //             break;
-        //         }
-        //     }
-
-        //     if start_i.is_none() {
-        //         break;
-        //     }
-
-        //     for j in start_i.unwrap() + 1..buffer.len() {
-        //         if buffer[j].side != Side::None {
-        //             if start_i.unwrap() < i {
-        //                 buffer.drain(start_i.unwrap() + 1..i); // Removing Side::None between first and last
-        //             }
-                    
-        //             break;
-        //         }
-        //     }
-
-        //     i += 1;
-        // }
-
-        let mut i = buffer.len();
-        while i > 1 {
-            let mut start_idx = None;
-            for j in (2..=i).rev() {
-                if buffer[j - 1].side == Side::None {
-                    start_idx = Some(j - 1);
-                    break;
+            if diff == 1 || ((buffer[i - 1].idx == max_idx || buffer[i].idx == max_idx) && diff == max_idx) { 
+                if first_idx.is_none() {
+                    first_idx = Some(i);
                 }
-                
-                i -= 1;
             }
-
-            if start_idx.is_none() {
-                continue;
-            }
-
-            for j in (1..i).rev() {
-                if buffer[j - 1].side != Side::None {
-                    break;
+            else if let Some(first_idx) = first_idx.take() {
+                if first_idx - i >= 2 {
+                    buffer.drain(i + 1..first_idx);
                 }
-
-                i -= 1;
             }
-
-            if i < start_idx.unwrap() {
-                buffer.drain(i..start_idx.unwrap());
-            }
-
-            i -= 1;
         }
-        
+
         if buffer.len() % 2 == 1 {
-            dbg!(&buffer);
             return Err(());
         }
 
