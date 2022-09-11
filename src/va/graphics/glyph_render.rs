@@ -33,16 +33,16 @@ enum Side {
 
 #[derive(Debug)]
 struct PointInfo {
-    idx: usize,
     pos: i32,
+    idx: usize,
     side: Side,
 }
 
 impl PointInfo {
-    fn new(idx: usize, pos: i32, side: Side) -> Self {
+    fn new(pos: i32, idx: usize, side: Side) -> Self {
         Self { 
-            idx,
             pos,
+            idx,
             side,
         }
     }
@@ -228,8 +228,8 @@ impl GlyphRender {
                     }
 
                     if p1.y == p2.y {
-                        buffer.push(PointInfo::new(idx, p1.x, Side::Other));
-                        buffer.push(PointInfo::new(idx, p2.x, Side::Other));
+                        buffer.push(PointInfo::new(p1.x, idx, Side::Other));
+                        buffer.push(PointInfo::new(p2.x, idx, Side::Other));
                         return;
                     }
 
@@ -246,7 +246,7 @@ impl GlyphRender {
                     };
 
                     let equation = LineEquation::new(p1, p2);
-                    buffer.push(PointInfo::new(idx, equation.get_x_by_y(y.into()).round().cast(), side));
+                    buffer.push(PointInfo::new(equation.get_x_by_y(y.into()).round().cast(), idx, side));
                 };
 
                 let mut idx = 0;
@@ -332,6 +332,10 @@ impl GlyphRender {
 
     fn prepare_for_rendering(y: i32, mut buffer: Vec<PointInfo>, max_idx: usize) -> Result<Vec<PointInfo>, ()> {
         buffer.sort_unstable();
+
+        if y == 11 {
+            dbg!(&buffer);
+        }
             
         let mut remove_idx = Vec::new();
         for i in 1..buffer.len() {
@@ -349,20 +353,44 @@ impl GlyphRender {
             buffer.remove(idx);
         }
 
-        let mut first_idx = None;
-        for i in (1..buffer.len()).rev() {
-            let diff = max(buffer[i].idx, buffer[i - 1].idx) - min(buffer[i].idx, buffer[i - 1].idx); // because usize type
+        if y == 11 {
+            dbg!(&buffer);
+        }
 
-            if diff == 1 || ((buffer[i - 1].idx == max_idx || buffer[i].idx == max_idx) && diff == max_idx) { 
-                if first_idx.is_none() {
-                    first_idx = Some(i);
-                }
+        // let mut first_idx = None;
+        // for i in (1..buffer.len()).rev() {
+        //     let diff = max(buffer[i].idx, buffer[i - 1].idx) - min(buffer[i].idx, buffer[i - 1].idx); // because usize type
+
+        //     if diff <= 1 || ((buffer[i - 1].idx == max_idx || buffer[i].idx == max_idx) && diff == max_idx) { 
+        //         if first_idx.is_none() {
+        //             first_idx = Some(i);
+        //         }
+        //     }
+        //     else if let Some(first_idx) = first_idx.take() {
+        //         if first_idx - i >= 2 {
+        //             buffer.drain(i + 1..first_idx);
+        //         }
+        //     }
+        // }
+
+        buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
+        for i in (1..buffer.len()).rev() {
+            // let (min, max) = if buffer[i - 1].idx <= buffer[i].idx {
+            //     (buffer[i - 1].idx, buffer[i].idx)
+            // }
+            // else {
+            //     (buffer[i].idx, buffer[i - 1].idx)
+            // }
+
+            if buffer[i].idx - buffer[i - 1].idx <= 1 {
+                buffer.swap_remove(i);
             }
-            else if let Some(first_idx) = first_idx.take() {
-                if first_idx - i >= 2 {
-                    buffer.drain(i + 1..first_idx);
-                }
-            }
+        }
+
+        buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
+
+        if y == 11 {
+            dbg!(&buffer);
         }
 
         if buffer.len() % 2 == 1 {
