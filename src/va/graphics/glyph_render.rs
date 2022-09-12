@@ -51,7 +51,7 @@ impl PointInfo {
 impl PartialEq for PointInfo {
     fn eq(&self, other: &Self) -> bool {
         self.pos == other.pos
-            && self.side == other.side
+            && self.idx == other.idx
     }
 }
 
@@ -63,7 +63,7 @@ impl PartialOrd for PointInfo {
             Some(val) => {
                 match val {
                     Ordering::Equal => {
-                        (self.side as usize).partial_cmp(&(other.side as usize))
+                        self.idx.partial_cmp(&self.idx)
                     }
                     val => Some(val),
                 }
@@ -263,22 +263,21 @@ impl GlyphRender {
                 };
 
                 if !buffer.is_empty() {
-                    buffers.push(buffer);
+                    buffers.push((points.len() - 1, buffer));
                 }                
             }
 
-            for cw_buffer in cw_buffers {
-                if y == 11 {
+            for (max_outline_idx, cw_buffer) in cw_buffers {
+                if y == 92 {
                     dbg!(&cw_buffer);
                 }
 
-                let max_idx = cw_buffer.len() - 1;
-                let cw_buffer = match Self::prepare_for_rendering(y, cw_buffer, max_idx) {
+                let cw_buffer = match Self::prepare_for_rendering(y, cw_buffer, max_outline_idx) {
                     Ok(val) => val,
                     Err(_) => continue,
                 };
 
-                if y == 11 {
+                if y == 92 {
                     dbg!(&cw_buffer);
                 }
     
@@ -287,18 +286,17 @@ impl GlyphRender {
                 }
             }
 
-            for cc_buffer in cc_buffers {
-                if y == 11 {
+            for (max_outline_idx, cc_buffer) in cc_buffers {
+                if y == 92 {
                     dbg!(&cc_buffer);
                 }
 
-                let max_idx = cc_buffer.len() - 1;
-                let cc_buffer = match Self::prepare_for_rendering(y, cc_buffer, max_idx) {
+                let cc_buffer = match Self::prepare_for_rendering(y, cc_buffer, max_outline_idx) {
                     Ok(val) => val,
                     Err(_) => continue,
                 };
 
-                if y == 11 {
+                if y == 92 {
                     dbg!(&cc_buffer);
                 }
 
@@ -330,30 +328,37 @@ impl GlyphRender {
         }
     }
 
-    fn prepare_for_rendering(y: i32, mut buffer: Vec<PointInfo>, max_idx: usize) -> Result<Vec<PointInfo>, ()> {
+    fn prepare_for_rendering(y: i32, mut buffer: Vec<PointInfo>, max_outline_idx: usize) -> Result<Vec<PointInfo>, ()> {
         buffer.sort_unstable();
 
-        if y == 11 {
+        if y == 92 {
             dbg!(&buffer);
         }
             
-        let mut remove_idx = Vec::new();
-        for i in 1..buffer.len() {
-            if (buffer[i - 1].pos == buffer[i].pos)
-                && (
-                    buffer[i - 1].side == Side::Above && buffer[i].side == Side::Below
-                    || buffer[i - 1].side == Side::Below && buffer[i].side == Side::Above
-                )
-            {
-                remove_idx.push(i - 1);
+        // let mut remove_idx = Vec::new();
+        // for i in 1..buffer.len() {
+        //     if buffer[i - 1].pos == buffer[i].pos && buffer[i - 1].side != buffer[i].side {
+        //         remove_idx.push(i - 1); // TODO change to Side::Other
+        //     }
+        // }
+
+        // for idx in remove_idx.into_iter().rev() {
+        //     buffer.remove(idx);
+        // }
+
+        // buffer sort by pos and idx
+        let mut start_idx = buffer.len() - 1;
+        for i in (0..buffer.len() - 1).rev() {
+            if buffer[i].pos != buffer[start_idx].pos {
+                Self::process_same_pos(max_outline_idx, &mut buffer, i + 1, start_idx);
+                start_idx = i;
             }
         }
+        
+        Self::process_same_pos(max_outline_idx, &mut buffer, 0, start_idx);
 
-        for idx in remove_idx.into_iter().rev() {
-            buffer.remove(idx);
-        }
-
-        if y == 11 {
+        if y == 92 {
+            dbg!(max_outline_idx);
             dbg!(&buffer);
         }
 
@@ -374,22 +379,26 @@ impl GlyphRender {
         // }
 
         buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
-        for i in (1..buffer.len()).rev() {
-            // let (min, max) = if buffer[i - 1].idx <= buffer[i].idx {
-            //     (buffer[i - 1].idx, buffer[i].idx)
-            // }
-            // else {
-            //     (buffer[i].idx, buffer[i - 1].idx)
-            // }
 
-            if buffer[i].idx - buffer[i - 1].idx <= 1 {
-                buffer.swap_remove(i);
-            }
+        // let mut start_idx = None;
+        // for i in (1..buffer.len()).rev() {
+        //     if buffer[i].idx - buffer[i - 1].idx > 1 {
+        //         if let Some(idx) = start_idx.take() {
+        //             buffer.drain(i + 1..idx);
+        //         }
+        //     }
+        //     else {
+        //         start_idx = Some(i);
+        //     }
+        // }
+
+        for i in (1..buffer.len()).rev() {
+            //if buffer[i - 1].side == Side::Other && 
         }
 
         buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
 
-        if y == 11 {
+        if y == 92 {
             dbg!(&buffer);
         }
 
@@ -398,5 +407,29 @@ impl GlyphRender {
         }
 
         Ok(buffer)
+    }
+
+    fn process_same_pos(max_outline_idx: usize, buffer: &mut Vec<PointInfo>, start: usize, end: usize) {
+        for i in (start..=end).rev() {
+            for j in (start..i).rev() {
+                let (min_idx, max_idx) = if buffer[i].idx <= buffer[j].idx {
+                    (buffer[i].idx, buffer[j].idx)
+                }
+                else {
+                    (buffer[j].idx, buffer[i].idx)
+                };
+            
+                if buffer[i].side != buffer[j].side 
+                    && (
+                        max_idx - min_idx <= 1
+                        || max_idx == max_outline_idx && min_idx == 0
+                    )
+                {
+                    buffer[j].side = Side::Other;
+                    buffer.remove(i);
+                    break;
+                }
+            }
+        }
     }
 }
