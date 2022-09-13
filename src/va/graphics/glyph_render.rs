@@ -268,7 +268,7 @@ impl GlyphRender {
             }
 
             for (max_outline_idx, cw_buffer) in cw_buffers {
-                if y == 92 {
+                if y == 93 {
                     dbg!(&cw_buffer);
                 }
 
@@ -277,7 +277,7 @@ impl GlyphRender {
                     Err(_) => continue,
                 };
 
-                if y == 92 {
+                if y == 93 {
                     dbg!(&cw_buffer);
                 }
     
@@ -287,7 +287,7 @@ impl GlyphRender {
             }
 
             for (max_outline_idx, cc_buffer) in cc_buffers {
-                if y == 92 {
+                if y == 93 {
                     dbg!(&cc_buffer);
                 }
 
@@ -296,7 +296,7 @@ impl GlyphRender {
                     Err(_) => continue,
                 };
 
-                if y == 92 {
+                if y == 93 {
                     dbg!(&cc_buffer);
                 }
 
@@ -331,7 +331,7 @@ impl GlyphRender {
     fn prepare_for_rendering(y: i32, mut buffer: Vec<PointInfo>, max_outline_idx: usize) -> Result<Vec<PointInfo>, ()> {
         buffer.sort_unstable();
 
-        if y == 92 {
+        if y == 93 {
             dbg!(&buffer);
         }
             
@@ -346,7 +346,6 @@ impl GlyphRender {
         //     buffer.remove(idx);
         // }
 
-        // buffer sort by pos and idx
         let mut start_idx = buffer.len() - 1;
         for i in (0..buffer.len() - 1).rev() {
             if buffer[i].pos != buffer[start_idx].pos {
@@ -357,7 +356,7 @@ impl GlyphRender {
         
         Self::process_same_pos(max_outline_idx, &mut buffer, 0, start_idx);
 
-        if y == 92 {
+        if y == 93 {
             dbg!(max_outline_idx);
             dbg!(&buffer);
         }
@@ -392,13 +391,12 @@ impl GlyphRender {
         //     }
         // }
 
-        for i in (1..buffer.len()).rev() {
-            //if buffer[i - 1].side == Side::Other && 
-        }
+        // TODO
+        
 
         buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
 
-        if y == 92 {
+        if y == 93 {
             dbg!(&buffer);
         }
 
@@ -410,22 +408,22 @@ impl GlyphRender {
     }
 
     fn process_same_pos(max_outline_idx: usize, buffer: &mut Vec<PointInfo>, start: usize, end: usize) {
-        for i in (start..=end).rev() {
+        for i in (start + 1..=end).rev() {
             for j in (start..i).rev() {
-                let (min_idx, max_idx) = if buffer[i].idx <= buffer[j].idx {
-                    (buffer[i].idx, buffer[j].idx)
-                }
-                else {
-                    (buffer[j].idx, buffer[i].idx)
-                };
+                // let (min_idx, max_idx) = if buffer[i].idx <= buffer[j].idx {
+                //     (buffer[i].idx, buffer[j].idx)
+                // }
+                // else {
+                //     (buffer[j].idx, buffer[i].idx)
+                // };
             
                 if buffer[i].side != buffer[j].side 
                     && (
-                        max_idx - min_idx <= 1
-                        || max_idx == max_outline_idx && min_idx == 0
+                        buffer[i].idx - buffer[j].idx <= 1
+                        || buffer[i].idx == max_outline_idx && buffer[j].idx == 0
                     )
                 {
-                    buffer[j].side = Side::Other;
+                    buffer[j].side = Side::Other; // TODO
                     buffer.remove(i);
                     break;
                 }
