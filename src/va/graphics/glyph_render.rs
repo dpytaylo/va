@@ -26,9 +26,10 @@ enum SweepDirection {
 
 #[derive(Debug, PartialEq)]
 enum Side {
+    None,
     Above,
     Below,
-    Other,
+    Both,
 }
 
 #[derive(Debug)]
@@ -228,15 +229,15 @@ impl GlyphRender {
                     }
 
                     if p1.y == p2.y {
-                        buffer.push(PointInfo::new(p1.x, idx, Side::Other));
-                        buffer.push(PointInfo::new(p2.x, idx, Side::Other));
+                        buffer.push(PointInfo::new(p1.x, idx, Side::None));
+                        buffer.push(PointInfo::new(p2.x, idx, Side::None));
                         return;
                     }
 
                     let side = if p1.y < y && p2.y > y 
                         || p1.y > y && p2.y < y 
                     {
-                        Side::Other
+                        Side::Both
                     }
                     else if p1.y >= y && p2.y >= y {
                         Side::Below // y coordinate down
@@ -268,7 +269,7 @@ impl GlyphRender {
             }
 
             for (max_outline_idx, cw_buffer) in cw_buffers {
-                if y == 93 {
+                if y == 92 {
                     dbg!(&cw_buffer);
                 }
 
@@ -277,7 +278,7 @@ impl GlyphRender {
                     Err(_) => continue,
                 };
 
-                if y == 93 {
+                if y == 92 {
                     dbg!(&cw_buffer);
                 }
     
@@ -287,7 +288,7 @@ impl GlyphRender {
             }
 
             for (max_outline_idx, cc_buffer) in cc_buffers {
-                if y == 93 {
+                if y == 92 {
                     dbg!(&cc_buffer);
                 }
 
@@ -296,7 +297,7 @@ impl GlyphRender {
                     Err(_) => continue,
                 };
 
-                if y == 93 {
+                if y == 92 {
                     dbg!(&cc_buffer);
                 }
 
@@ -331,7 +332,7 @@ impl GlyphRender {
     fn prepare_for_rendering(y: i32, mut buffer: Vec<PointInfo>, max_outline_idx: usize) -> Result<Vec<PointInfo>, ()> {
         buffer.sort_unstable();
 
-        if y == 93 {
+        if y == 92 {
             dbg!(&buffer);
         }
             
@@ -356,7 +357,7 @@ impl GlyphRender {
         
         Self::process_same_pos(max_outline_idx, &mut buffer, 0, start_idx);
 
-        if y == 93 {
+        if y == 92 {
             dbg!(max_outline_idx);
             dbg!(&buffer);
         }
@@ -377,7 +378,7 @@ impl GlyphRender {
         //     }
         // }
 
-        buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
+        //buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
 
         // let mut start_idx = None;
         // for i in (1..buffer.len()).rev() {
@@ -392,11 +393,86 @@ impl GlyphRender {
         // }
 
         // TODO
-        
+        // let mut was_other = false;
+        // for i in (1..buffer.len()).rev() {
+        //     if buffer[i].side == Side::Other {
+        //         for j in (0..i).rev() {
+        //             if buffer[i].idx - buffer[j].idx > 1 {
+        //                 break;
+        //             } 
 
-        buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
+        //             if buffer[j].side == Side::Other {
+        //                 buffer.remove(i);
+        //                 break;
+        //             }
+        //         }
+        //     }
+        // }
 
-        if y == 93 {
+        //buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
+
+        //buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
+
+        // let mut other_buffer = Vec::new();
+        // for i in (1..buffer.len()).rev() {
+        //     if buffer[i].side == Side::None {
+        //         for j in (0..i).rev() {
+        //             if buffer[i].idx - buffer[j].idx > 1 {
+
+        //             }
+        //         }
+        //     }
+        // }
+
+        //buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
+
+        // let mut start_idx = None;
+
+        // let mut last_idx = None;
+        // let mut borders = Vec::new();
+
+        // for i in (0..buffer.len()).rev() {
+        //     if buffer[i].side == Side::None {
+        //         if start_idx.is_none() {
+        //             start_idx = Some(i);
+        //             last_idx = Some(buffer[i].idx);
+        //         }
+
+        //         if last_idx.unwrap() - buffer[i].idx > 1 {
+        //             borders.push(i);
+        //         }
+
+        //         last_idx = Some(buffer[i].idx);
+        //     }
+        //     else {
+        //         if let Some(start_idx) = start_idx.take() {
+        //             if !borders.is_empty() {
+        //                 buffer.drain(i + 1..=*borders.last().unwrap());
+        //             }
+
+        //             last_idx = None;
+        //             borders.clear();
+        //         }
+        //     }
+        // }
+
+        // let mut start_idx = None;
+        // for i in (0..buffer.len()).rev() {
+        //     if buffer[i].side == Side::None {
+        //         if start_idx.is_none() {
+        //             start_idx = Some(i);
+        //         }
+        //     }
+        //     else {
+        //         if let Some(start_idx) = start_idx.take() {
+        //             if i + 2 < start_idx {
+        //                 buffer.drain(i + 2..start_idx);
+        //             }   
+        //         }
+        //     }
+        // }
+
+        if y == 92 {
             dbg!(&buffer);
         }
 
@@ -417,16 +493,33 @@ impl GlyphRender {
                 //     (buffer[j].idx, buffer[i].idx)
                 // };
             
-                if buffer[i].side != buffer[j].side 
-                    && (
-                        buffer[i].idx - buffer[j].idx <= 1
-                        || buffer[i].idx == max_outline_idx && buffer[j].idx == 0
-                    )
+                // if buffer[i].side != buffer[j].side 
+                //     && (
+                //         buffer[i].idx - buffer[j].idx <= 1
+                //         || buffer[i].idx == max_outline_idx && buffer[j].idx == 0
+                //     )
+                // {
+                //     buffer[j].side = Side::Other; // TODO
+                //     buffer.remove(i);
+                //     break;
+                // }
+
+                if !(buffer[i].idx - buffer[j].idx <= 1
+                        || buffer[i].idx == max_outline_idx && buffer[j].idx == 0) 
+                    || buffer[i].side == buffer[j].side
                 {
-                    buffer[j].side = Side::Other; // TODO
-                    buffer.remove(i);
-                    break;
+                    continue;
                 }
+
+                if buffer[i].side == Side::None || buffer[j].side == Side::None {
+                    buffer[j].side = Side::None;   
+                }
+                else {
+                    buffer[j].side = Side::Both;
+                }
+
+                buffer.remove(i);
+                break;
             }
         }
     }
