@@ -253,8 +253,8 @@ impl Manager {
         buffer2d.fill(Vec4::new(0.0, 0.0, 0.0, 1.0));
                 
         let mut offset = 0.0;
-        //for char in ('A'..='Z').chain('a'..='z') {
-        for char in 'C'..='C' {
+        for char in ('A'..='Z').chain('a'..='z') {
+        //for char in 'O'..='O' {
             let glyph_id = face.glyph_index(char).context("invalid glyph index")?;
             let bounding_box = face.glyph_bounding_box(glyph_id).context("invalid glyph bounding box")?;
     

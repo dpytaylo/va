@@ -228,6 +228,10 @@ impl GlyphRender {
                         return;
                     }
 
+                    if !(min < y && y <= max) {
+                        return;
+                    }
+
                     if p1.y == p2.y {
                         buffer.push(PointInfo::new(p1.x, idx, Side::None));
                         buffer.push(PointInfo::new(p2.x, idx, Side::None));
@@ -322,9 +326,13 @@ impl GlyphRender {
         //     buffer.draw_line((*points.last().unwrap()).round().cast(), points[0].round().cast(), Vec4::from(1.0));
         // }
 
-        for (_, points) in &self.outlines {
+        for (dir, points) in &self.outlines {
             for &point in points {
                 buffer.draw_point(point.round().cast(), Vec4::new(0.0, 1.0, 0.0, 1.0));
+            }
+
+            if *dir == SweepDirection::Clockwise {
+                //dbg!(points);
             }
         }
     }
@@ -332,153 +340,157 @@ impl GlyphRender {
     fn prepare_for_rendering(y: i32, mut buffer: Vec<PointInfo>, max_outline_idx: usize) -> Result<Vec<PointInfo>, ()> {
         buffer.sort_unstable();
 
-        if y == 92 {
+        if y == 0 {
             dbg!(&buffer);
         }
+
+        // if y == 92 {
+        //     dbg!(&buffer);
+        // }
             
-        // let mut remove_idx = Vec::new();
-        // for i in 1..buffer.len() {
-        //     if buffer[i - 1].pos == buffer[i].pos && buffer[i - 1].side != buffer[i].side {
-        //         remove_idx.push(i - 1); // TODO change to Side::Other
+        // // let mut remove_idx = Vec::new();
+        // // for i in 1..buffer.len() {
+        // //     if buffer[i - 1].pos == buffer[i].pos && buffer[i - 1].side != buffer[i].side {
+        // //         remove_idx.push(i - 1); // TODO change to Side::Other
+        // //     }
+        // // }
+
+        // // for idx in remove_idx.into_iter().rev() {
+        // //     buffer.remove(idx);
+        // // }
+
+        // let mut start_idx = buffer.len() - 1;
+        // for i in (0..buffer.len() - 1).rev() {
+        //     if buffer[i].pos != buffer[start_idx].pos {
+        //         Self::process_same_pos(max_outline_idx, &mut buffer, i + 1, start_idx);
+        //         start_idx = i;
         //     }
         // }
-
-        // for idx in remove_idx.into_iter().rev() {
-        //     buffer.remove(idx);
-        // }
-
-        let mut start_idx = buffer.len() - 1;
-        for i in (0..buffer.len() - 1).rev() {
-            if buffer[i].pos != buffer[start_idx].pos {
-                Self::process_same_pos(max_outline_idx, &mut buffer, i + 1, start_idx);
-                start_idx = i;
-            }
-        }
         
-        Self::process_same_pos(max_outline_idx, &mut buffer, 0, start_idx);
+        // Self::process_same_pos(max_outline_idx, &mut buffer, 0, start_idx);
 
-        if y == 92 {
-            dbg!(max_outline_idx);
-            dbg!(&buffer);
-        }
-
-        // let mut first_idx = None;
-        // for i in (1..buffer.len()).rev() {
-        //     let diff = max(buffer[i].idx, buffer[i - 1].idx) - min(buffer[i].idx, buffer[i - 1].idx); // because usize type
-
-        //     if diff <= 1 || ((buffer[i - 1].idx == max_idx || buffer[i].idx == max_idx) && diff == max_idx) { 
-        //         if first_idx.is_none() {
-        //             first_idx = Some(i);
-        //         }
-        //     }
-        //     else if let Some(first_idx) = first_idx.take() {
-        //         if first_idx - i >= 2 {
-        //             buffer.drain(i + 1..first_idx);
-        //         }
-        //     }
+        // if y == 92 {
+        //     dbg!(max_outline_idx);
+        //     dbg!(&buffer);
         // }
 
-        //buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
+        // // let mut first_idx = None;
+        // // for i in (1..buffer.len()).rev() {
+        // //     let diff = max(buffer[i].idx, buffer[i - 1].idx) - min(buffer[i].idx, buffer[i - 1].idx); // because usize type
 
-        // let mut start_idx = None;
-        // for i in (1..buffer.len()).rev() {
-        //     if buffer[i].idx - buffer[i - 1].idx > 1 {
-        //         if let Some(idx) = start_idx.take() {
-        //             buffer.drain(i + 1..idx);
-        //         }
-        //     }
-        //     else {
-        //         start_idx = Some(i);
-        //     }
+        // //     if diff <= 1 || ((buffer[i - 1].idx == max_idx || buffer[i].idx == max_idx) && diff == max_idx) { 
+        // //         if first_idx.is_none() {
+        // //             first_idx = Some(i);
+        // //         }
+        // //     }
+        // //     else if let Some(first_idx) = first_idx.take() {
+        // //         if first_idx - i >= 2 {
+        // //             buffer.drain(i + 1..first_idx);
+        // //         }
+        // //     }
+        // // }
+
+        // //buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
+
+        // // let mut start_idx = None;
+        // // for i in (1..buffer.len()).rev() {
+        // //     if buffer[i].idx - buffer[i - 1].idx > 1 {
+        // //         if let Some(idx) = start_idx.take() {
+        // //             buffer.drain(i + 1..idx);
+        // //         }
+        // //     }
+        // //     else {
+        // //         start_idx = Some(i);
+        // //     }
+        // // }
+
+        // // TODO
+        // // let mut was_other = false;
+        // // for i in (1..buffer.len()).rev() {
+        // //     if buffer[i].side == Side::Other {
+        // //         for j in (0..i).rev() {
+        // //             if buffer[i].idx - buffer[j].idx > 1 {
+        // //                 break;
+        // //             } 
+
+        // //             if buffer[j].side == Side::Other {
+        // //                 buffer.remove(i);
+        // //                 break;
+        // //             }
+        // //         }
+        // //     }
+        // // }
+
+        // //buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
+
+        // //buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
+
+        // // let mut other_buffer = Vec::new();
+        // // for i in (1..buffer.len()).rev() {
+        // //     if buffer[i].side == Side::None {
+        // //         for j in (0..i).rev() {
+        // //             if buffer[i].idx - buffer[j].idx > 1 {
+
+        // //             }
+        // //         }
+        // //     }
+        // // }
+
+        // //buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
+
+        // // let mut start_idx = None;
+
+        // // let mut last_idx = None;
+        // // let mut borders = Vec::new();
+
+        // // for i in (0..buffer.len()).rev() {
+        // //     if buffer[i].side == Side::None {
+        // //         if start_idx.is_none() {
+        // //             start_idx = Some(i);
+        // //             last_idx = Some(buffer[i].idx);
+        // //         }
+
+        // //         if last_idx.unwrap() - buffer[i].idx > 1 {
+        // //             borders.push(i);
+        // //         }
+
+        // //         last_idx = Some(buffer[i].idx);
+        // //     }
+        // //     else {
+        // //         if let Some(start_idx) = start_idx.take() {
+        // //             if !borders.is_empty() {
+        // //                 buffer.drain(i + 1..=*borders.last().unwrap());
+        // //             }
+
+        // //             last_idx = None;
+        // //             borders.clear();
+        // //         }
+        // //     }
+        // // }
+
+        // // let mut start_idx = None;
+        // // for i in (0..buffer.len()).rev() {
+        // //     if buffer[i].side == Side::None {
+        // //         if start_idx.is_none() {
+        // //             start_idx = Some(i);
+        // //         }
+        // //     }
+        // //     else {
+        // //         if let Some(start_idx) = start_idx.take() {
+        // //             if i + 2 < start_idx {
+        // //                 buffer.drain(i + 2..start_idx);
+        // //             }   
+        // //         }
+        // //     }
+        // // }
+
+        // if y == 92 {
+        //     dbg!(&buffer);
         // }
 
-        // TODO
-        // let mut was_other = false;
-        // for i in (1..buffer.len()).rev() {
-        //     if buffer[i].side == Side::Other {
-        //         for j in (0..i).rev() {
-        //             if buffer[i].idx - buffer[j].idx > 1 {
-        //                 break;
-        //             } 
-
-        //             if buffer[j].side == Side::Other {
-        //                 buffer.remove(i);
-        //                 break;
-        //             }
-        //         }
-        //     }
+        // if buffer.len() % 2 == 1 {
+        //     return Err(());
         // }
-
-        //buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
-
-        //buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
-
-        // let mut other_buffer = Vec::new();
-        // for i in (1..buffer.len()).rev() {
-        //     if buffer[i].side == Side::None {
-        //         for j in (0..i).rev() {
-        //             if buffer[i].idx - buffer[j].idx > 1 {
-
-        //             }
-        //         }
-        //     }
-        // }
-
-        //buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
-
-        // let mut start_idx = None;
-
-        // let mut last_idx = None;
-        // let mut borders = Vec::new();
-
-        // for i in (0..buffer.len()).rev() {
-        //     if buffer[i].side == Side::None {
-        //         if start_idx.is_none() {
-        //             start_idx = Some(i);
-        //             last_idx = Some(buffer[i].idx);
-        //         }
-
-        //         if last_idx.unwrap() - buffer[i].idx > 1 {
-        //             borders.push(i);
-        //         }
-
-        //         last_idx = Some(buffer[i].idx);
-        //     }
-        //     else {
-        //         if let Some(start_idx) = start_idx.take() {
-        //             if !borders.is_empty() {
-        //                 buffer.drain(i + 1..=*borders.last().unwrap());
-        //             }
-
-        //             last_idx = None;
-        //             borders.clear();
-        //         }
-        //     }
-        // }
-
-        // let mut start_idx = None;
-        // for i in (0..buffer.len()).rev() {
-        //     if buffer[i].side == Side::None {
-        //         if start_idx.is_none() {
-        //             start_idx = Some(i);
-        //         }
-        //     }
-        //     else {
-        //         if let Some(start_idx) = start_idx.take() {
-        //             if i + 2 < start_idx {
-        //                 buffer.drain(i + 2..start_idx);
-        //             }   
-        //         }
-        //     }
-        // }
-
-        if y == 92 {
-            dbg!(&buffer);
-        }
-
-        if buffer.len() % 2 == 1 {
-            return Err(());
-        }
 
         Ok(buffer)
     }
