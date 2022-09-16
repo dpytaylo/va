@@ -5,9 +5,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use thiserror::Error;
-use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
+use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, BufferContents};
 use vulkano::command_buffer::PrimaryAutoCommandBuffer;
-use vulkano::memory::DeviceMemoryAllocError;
+use vulkano::memory::DeviceMemoryAllocationError;
 use vulkano::pipeline::graphics::viewport::Viewport;
 use vulkano::render_pass::Framebuffer;
 
@@ -30,6 +30,7 @@ pub trait AbstractLayerRenderData {
 
 pub struct LayerRenderData<T> 
     where T: Clone + 'static,
+          [T]: BufferContents,
 {
     graphics: Rc<Graphics>,
 
@@ -48,12 +49,13 @@ pub enum LayerRenderDataError {
 
 impl<T> LayerRenderData<T> 
     where T: Clone + 'static,
+          [T]: BufferContents,
 {
     pub fn new(
         graphics: Rc<Graphics>,
         layer_render_data_index: usize,
         render_data: RenderData<T>,
-    ) -> Result<(Self, LayerRenderDataHandle<T>), DeviceMemoryAllocError> 
+    ) -> Result<(Self, LayerRenderDataHandle<T>), DeviceMemoryAllocationError> 
     {
         let vertex_buffer = CpuAccessibleBuffer::from_iter(
             graphics.device().expect("no available device"),
@@ -78,7 +80,7 @@ impl<T> LayerRenderData<T>
         ))
     }
 
-    pub fn update_vertex_buffer(&self) -> Result<(), DeviceMemoryAllocError> {
+    pub fn update_vertex_buffer(&self) -> Result<(), DeviceMemoryAllocationError> {
         let data: Vec<_> = self
             .meshes
             .borrow()
@@ -110,6 +112,7 @@ impl<T> LayerRenderData<T>
 
 impl<T> AbstractLayerRenderData for LayerRenderData<T> 
     where T: Clone,
+          [T]: BufferContents,
 {
     fn type_id(&self) -> TypeId {
         TypeId::of::<T>()

@@ -3,14 +3,16 @@ use std::cell::Ref;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use vulkano::buffer::CpuAccessibleBuffer;
+use vulkano::buffer::{CpuAccessibleBuffer, BufferContents};
 use vulkano::command_buffer::PrimaryAutoCommandBuffer;
 use vulkano::pipeline::graphics::viewport::Viewport;
 use vulkano::render_pass::Framebuffer;
 
 use super::Graphics;
 
-pub trait RenderState<T> {
+pub trait RenderState<T> 
+    where [T]: BufferContents,
+{
     fn command_buffer(
         &self,
         graphics: &Rc<Graphics>,
