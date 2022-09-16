@@ -1,8 +1,5 @@
 // abcdefghijklmnopqrstuvwxyz
-use std::cmp::{Ordering, max, min};
 use std::mem;
-use std::num::NonZeroUsize;
-use std::ops::Index;
 
 use ttf_parser::OutlineBuilder;
 
@@ -18,66 +15,10 @@ use crate::utils::math::vector::vector4::Vec4;
 use super::buffer::buffer2d::{Buffer2d, Buffer2dRead};
 use super::rasterizate::Rasterizate;
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy)]
 enum SweepDirection {
     Clockwise,
     Counterclockwise,
-}
-
-#[derive(Debug, PartialEq)]
-enum Side {
-    None,
-    Above,
-    Below,
-    Both,
-}
-
-#[derive(Debug)]
-struct PointInfo {
-    pos: i32,
-    idx: usize,
-    side: Side,
-}
-
-impl PointInfo {
-    fn new(pos: i32, idx: usize, side: Side) -> Self {
-        Self { 
-            pos,
-            idx,
-            side,
-        }
-    }
-}
-
-impl PartialEq for PointInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.pos == other.pos
-            && self.idx == other.idx
-    }
-}
-
-impl Eq for PointInfo {}
-
-impl PartialOrd for PointInfo {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self.pos.partial_cmp(&other.pos) {
-            Some(val) => {
-                match val {
-                    Ordering::Equal => {
-                        self.idx.partial_cmp(&self.idx)
-                    }
-                    val => Some(val),
-                }
-            }
-            None => None,
-        }
-    }
-}
-
-impl Ord for PointInfo {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
 }
 
 pub struct GlyphRenderBuilder {
@@ -213,7 +154,7 @@ impl GlyphRender {
             for (dir, points) in &self.outlines {
                 let mut buffer = Vec::new();
 
-                let mut closure = |idx: usize, p1: Vec2<f32>, p2: Vec2<f32>| {
+                let mut closure = |p1: Vec2<f32>, p2: Vec2<f32>| {
                     let p1: Vec2<i32> = p1.round().cast();
                     let p2: Vec2<i32> = p2.round().cast();
 
@@ -224,43 +165,22 @@ impl GlyphRender {
                         (p2.y, p1.y)
                     };
                     
-                    if y < min || y > max {
-                        return;
-                    }
-
                     if !(min < y && y <= max) {
                         return;
                     }
 
-                    if p1.y == p2.y {
-                        buffer.push(PointInfo::new(p1.x, idx, Side::None));
-                        buffer.push(PointInfo::new(p2.x, idx, Side::None));
-                        return;
-                    }
-
-                    let side = if p1.y < y && p2.y > y 
-                        || p1.y > y && p2.y < y 
-                    {
-                        Side::Both
-                    }
-                    else if p1.y >= y && p2.y >= y {
-                        Side::Below // y coordinate down
-                    }
-                    else {
-                        Side::Above
-                    };
-
                     let equation = LineEquation::new(p1, p2);
-                    buffer.push(PointInfo::new(equation.get_x_by_y(y.into()).round().cast(), idx, side));
+                    let x: i32 = equation.get_x_by_y(y.into()).round().cast();
+                    buffer.push(x);
                 };
 
-                let mut idx = 0;
                 for i in 1..points.len() {
-                    closure(idx, points[i - 1], points[i]);
-                    idx += 1;
+                    closure(points[i - 1], points[i]);
                 }
 
-                closure(idx, *points.last().unwrap(), points[0]);
+                closure(*points.last().unwrap(), points[0]);
+
+                buffer.sort_unstable();
 
                 let buffers = match dir {
                     SweepDirection::Clockwise => &mut cw_buffers,
@@ -268,52 +188,29 @@ impl GlyphRender {
                 };
 
                 if !buffer.is_empty() {
-                    buffers.push((points.len() - 1, buffer));
+                    buffers.push(buffer);
                 }                
             }
 
-            for (max_outline_idx, cw_buffer) in cw_buffers {
-                if y == 92 {
-                    dbg!(&cw_buffer);
-                }
-
-                let cw_buffer = match Self::prepare_for_rendering(y, cw_buffer, max_outline_idx) {
-                    Ok(val) => val,
-                    Err(_) => continue,
-                };
-
-                if y == 92 {
-                    dbg!(&cw_buffer);
-                }
-    
+            for cw_buffer in cw_buffers {
                 for i in (0..cw_buffer.len()).step_by(2) {
-                    buffer.draw_horizontal_line(cw_buffer[i].pos, cw_buffer[i + 1].pos, y, Vec4::from(1.0));
+                    buffer.draw_horizontal_line(
+                        cw_buffer[i], 
+                        cw_buffer[i + 1],
+                        y,
+                        Vec4::from(1.0)
+                    );
                 }
             }
 
-            for (max_outline_idx, cc_buffer) in cc_buffers {
-                if y == 92 {
-                    dbg!(&cc_buffer);
-                }
-
-                let cc_buffer = match Self::prepare_for_rendering(y, cc_buffer, max_outline_idx) {
-                    Ok(val) => val,
-                    Err(_) => continue,
-                };
-
-                if y == 92 {
-                    dbg!(&cc_buffer);
-                }
-
+            for cc_buffer in cc_buffers {
                 for i in (0..cc_buffer.len()).step_by(2) {
-                    if cc_buffer[i].pos + 1 < cc_buffer[i + 1].pos {
-                        buffer.draw_horizontal_line(
-                            cc_buffer[i].pos + 1,
-                            cc_buffer[i + 1].pos - 1, 
-                            y, 
-                            Vec4::new(0.0, 0.0, 0.0, 1.0)
-                        );
-                    }
+                    buffer.draw_horizontal_line(
+                        cc_buffer[i],
+                        cc_buffer[i + 1], 
+                        y, 
+                        Vec4::new(0.0, 0.0, 0.0, 1.0)
+                    );
                 }
             }
         }
@@ -325,214 +222,5 @@ impl GlyphRender {
 
         //     buffer.draw_line((*points.last().unwrap()).round().cast(), points[0].round().cast(), Vec4::from(1.0));
         // }
-
-        for (dir, points) in &self.outlines {
-            for &point in points {
-                buffer.draw_point(point.round().cast(), Vec4::new(0.0, 1.0, 0.0, 1.0));
-            }
-
-            if *dir == SweepDirection::Clockwise {
-                //dbg!(points);
-            }
-        }
-    }
-
-    fn prepare_for_rendering(y: i32, mut buffer: Vec<PointInfo>, max_outline_idx: usize) -> Result<Vec<PointInfo>, ()> {
-        buffer.sort_unstable();
-
-        if y == 0 {
-            dbg!(&buffer);
-        }
-
-        // if y == 92 {
-        //     dbg!(&buffer);
-        // }
-            
-        // // let mut remove_idx = Vec::new();
-        // // for i in 1..buffer.len() {
-        // //     if buffer[i - 1].pos == buffer[i].pos && buffer[i - 1].side != buffer[i].side {
-        // //         remove_idx.push(i - 1); // TODO change to Side::Other
-        // //     }
-        // // }
-
-        // // for idx in remove_idx.into_iter().rev() {
-        // //     buffer.remove(idx);
-        // // }
-
-        // let mut start_idx = buffer.len() - 1;
-        // for i in (0..buffer.len() - 1).rev() {
-        //     if buffer[i].pos != buffer[start_idx].pos {
-        //         Self::process_same_pos(max_outline_idx, &mut buffer, i + 1, start_idx);
-        //         start_idx = i;
-        //     }
-        // }
-        
-        // Self::process_same_pos(max_outline_idx, &mut buffer, 0, start_idx);
-
-        // if y == 92 {
-        //     dbg!(max_outline_idx);
-        //     dbg!(&buffer);
-        // }
-
-        // // let mut first_idx = None;
-        // // for i in (1..buffer.len()).rev() {
-        // //     let diff = max(buffer[i].idx, buffer[i - 1].idx) - min(buffer[i].idx, buffer[i - 1].idx); // because usize type
-
-        // //     if diff <= 1 || ((buffer[i - 1].idx == max_idx || buffer[i].idx == max_idx) && diff == max_idx) { 
-        // //         if first_idx.is_none() {
-        // //             first_idx = Some(i);
-        // //         }
-        // //     }
-        // //     else if let Some(first_idx) = first_idx.take() {
-        // //         if first_idx - i >= 2 {
-        // //             buffer.drain(i + 1..first_idx);
-        // //         }
-        // //     }
-        // // }
-
-        // //buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
-
-        // // let mut start_idx = None;
-        // // for i in (1..buffer.len()).rev() {
-        // //     if buffer[i].idx - buffer[i - 1].idx > 1 {
-        // //         if let Some(idx) = start_idx.take() {
-        // //             buffer.drain(i + 1..idx);
-        // //         }
-        // //     }
-        // //     else {
-        // //         start_idx = Some(i);
-        // //     }
-        // // }
-
-        // // TODO
-        // // let mut was_other = false;
-        // // for i in (1..buffer.len()).rev() {
-        // //     if buffer[i].side == Side::Other {
-        // //         for j in (0..i).rev() {
-        // //             if buffer[i].idx - buffer[j].idx > 1 {
-        // //                 break;
-        // //             } 
-
-        // //             if buffer[j].side == Side::Other {
-        // //                 buffer.remove(i);
-        // //                 break;
-        // //             }
-        // //         }
-        // //     }
-        // // }
-
-        // //buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
-
-        // //buffer.sort_unstable_by(|left, right| left.idx.cmp(&right.idx));
-
-        // // let mut other_buffer = Vec::new();
-        // // for i in (1..buffer.len()).rev() {
-        // //     if buffer[i].side == Side::None {
-        // //         for j in (0..i).rev() {
-        // //             if buffer[i].idx - buffer[j].idx > 1 {
-
-        // //             }
-        // //         }
-        // //     }
-        // // }
-
-        // //buffer.sort_unstable_by(|left, right| left.pos.cmp(&right.pos));
-
-        // // let mut start_idx = None;
-
-        // // let mut last_idx = None;
-        // // let mut borders = Vec::new();
-
-        // // for i in (0..buffer.len()).rev() {
-        // //     if buffer[i].side == Side::None {
-        // //         if start_idx.is_none() {
-        // //             start_idx = Some(i);
-        // //             last_idx = Some(buffer[i].idx);
-        // //         }
-
-        // //         if last_idx.unwrap() - buffer[i].idx > 1 {
-        // //             borders.push(i);
-        // //         }
-
-        // //         last_idx = Some(buffer[i].idx);
-        // //     }
-        // //     else {
-        // //         if let Some(start_idx) = start_idx.take() {
-        // //             if !borders.is_empty() {
-        // //                 buffer.drain(i + 1..=*borders.last().unwrap());
-        // //             }
-
-        // //             last_idx = None;
-        // //             borders.clear();
-        // //         }
-        // //     }
-        // // }
-
-        // // let mut start_idx = None;
-        // // for i in (0..buffer.len()).rev() {
-        // //     if buffer[i].side == Side::None {
-        // //         if start_idx.is_none() {
-        // //             start_idx = Some(i);
-        // //         }
-        // //     }
-        // //     else {
-        // //         if let Some(start_idx) = start_idx.take() {
-        // //             if i + 2 < start_idx {
-        // //                 buffer.drain(i + 2..start_idx);
-        // //             }   
-        // //         }
-        // //     }
-        // // }
-
-        // if y == 92 {
-        //     dbg!(&buffer);
-        // }
-
-        // if buffer.len() % 2 == 1 {
-        //     return Err(());
-        // }
-
-        Ok(buffer)
-    }
-
-    fn process_same_pos(max_outline_idx: usize, buffer: &mut Vec<PointInfo>, start: usize, end: usize) {
-        for i in (start + 1..=end).rev() {
-            for j in (start..i).rev() {
-                // let (min_idx, max_idx) = if buffer[i].idx <= buffer[j].idx {
-                //     (buffer[i].idx, buffer[j].idx)
-                // }
-                // else {
-                //     (buffer[j].idx, buffer[i].idx)
-                // };
-            
-                // if buffer[i].side != buffer[j].side 
-                //     && (
-                //         buffer[i].idx - buffer[j].idx <= 1
-                //         || buffer[i].idx == max_outline_idx && buffer[j].idx == 0
-                //     )
-                // {
-                //     buffer[j].side = Side::Other; // TODO
-                //     buffer.remove(i);
-                //     break;
-                // }
-
-                if !(buffer[i].idx - buffer[j].idx <= 1
-                        || buffer[i].idx == max_outline_idx && buffer[j].idx == 0) 
-                    || buffer[i].side == buffer[j].side
-                {
-                    continue;
-                }
-
-                if buffer[i].side == Side::None || buffer[j].side == Side::None {
-                    buffer[j].side = Side::None;   
-                }
-                else {
-                    buffer[j].side = Side::Both;
-                }
-
-                buffer.remove(i);
-                break;
-            }
-        }
     }
 }
