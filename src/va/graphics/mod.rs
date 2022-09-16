@@ -21,10 +21,12 @@ use std::sync::Arc;
 use anyhow::{bail, Context};
 use log::{error, info};
 
+use vulkano::device::DeviceCreateInfo;
 use vulkano::device::{
     physical::PhysicalDevice, physical::QueueFamily, Device, DeviceCreationError, DeviceExtensions,
     Features, Queue, QueuesIter,
 };
+use vulkano::instance::InstanceCreateInfo;
 use vulkano::instance::{self, debug::DebugCallback, Instance, LayerProperties, Version};
 use vulkano::swapchain::Surface;
 use vulkano::sync::GpuFuture;
@@ -74,7 +76,7 @@ impl Graphics {
 
         // Debug
         request_extensions.ext_debug_utils = true;
-        let validation_layers = ["VK_LAYER_KHRONOS_validation"];
+        let validation_layers = vec![String::from("VK_LAYER_KHRONOS_validation")];
 
         let layers: Vec<LayerProperties> = instance::layers_list().unwrap().collect();
 
@@ -106,7 +108,13 @@ impl Graphics {
             }
         }
 
-        let instance = Instance::new(None, Version::V1_2, &request_extensions, validation_layers)?;
+        let create_info = InstanceCreateInfo {
+            enabled_extensions: request_extensions,
+            enabled_layers: validation_layers,
+            ..InstanceCreateInfo::application_from_cargo_toml()
+        };
+
+        let instance = Instance::new(create_info)?;
         let debug_callback = DebugCallback::errors_and_warnings(&instance, |msg| {
             error!("Vulkan debug: {:?}", msg.description);
         })?;
@@ -175,12 +183,14 @@ impl Graphics {
         queue_family: QueueFamily,
     ) -> Result<(Arc<Device>, QueuesIter), DeviceCreationError> 
     {
-        Device::new(
-            physical,
-            &REQUIRED_FEATURES,
-            &REQUIRED_EXTENSIONS,
-            [(queue_family, 0.5)].iter().cloned(),
-        )
+        let create_info = DeviceCreateInfo {
+            enabled_extensions: REQUIRED_EXTENSIONS,
+            enabled_features: REQUIRED_FEATURES,
+            queue_create_infos: [(queue_family, 0.5)].iter().cloned(),
+            ..DeviceCreateInfo::default()
+        };
+
+        Device::new(physical, create_info)
     }
 
     pub fn new_future(&self, future: Box<dyn GpuFuture>) {
