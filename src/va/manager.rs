@@ -13,7 +13,7 @@ use thiserror::Error;
 use ttf_parser::{Face, OutlineBuilder};
 
 use vulkano::format::Format;
-use vulkano::image::view::ImageView;
+use vulkano::image::view::{ImageView, ImageViewCreateInfo};
 use vulkano::image::{ImageDimensions, ImmutableImage, MipmapsCount};
 use vulkano::shader::{ShaderCreationError, ShaderModule};
 
@@ -221,7 +221,7 @@ impl Manager {
         
         self.graphics.new_future(Box::new(future));
 
-        Ok(ImageView::new(image)?)
+        Ok(ImageView::new_default(image)?)
     }
 
     pub fn load_font(&self, font_name: &str, px_size: u32) -> anyhow::Result<Arc<ImageView<ImmutableImage>>>
@@ -263,7 +263,7 @@ impl Manager {
                 Vec2::new(bounding_box.x_max, bounding_box.y_max).into(),
             );
 
-            dbg!(bounding_box);
+            //dbg!(bounding_box);
     
             //let transform = Mat3x3::with_scale(Vec2::new(k, k));
             let translate = Mat3x3::with_translate(Vec2::new(-bounding_box.p1.x, -bounding_box.p1.y));
@@ -276,10 +276,10 @@ impl Manager {
                 (transform * Vec3::new(bounding_box.p2.x, bounding_box.p2.y, 0.0)).xy(),
             );
 
-            dbg!(bounding_box);
+            //dbg!(bounding_box);
             
             let box_height = height_rect.p1.y - height_rect.p2.y;
-            dbg!(box_height);
+            //dbg!(box_height);
 
             let translate = Mat3x3::with_translate(Vec2::new(offset, box_height));
             let transform = translate * transform;
@@ -289,7 +289,7 @@ impl Manager {
                 (transform * Vec3::new(bounding_box.p2.x, bounding_box.p2.y, 0.0)).xy(),
             );
 
-            dbg!(bounding_box);
+            //dbg!(bounding_box);
     
             let mut builder = GlyphRenderBuilder::new(transform);
             loop {
@@ -335,7 +335,7 @@ impl Manager {
         
         self.graphics.new_future(Box::new(future));
 
-        Ok(ImageView::new(image)?)
+        Ok(ImageView::new_default(image)?)
     }
 
     pub fn save_image<T>(&self, path: T, data: &[u8], color_type: ColorType, width: u32, height: u32) -> anyhow::Result<()>

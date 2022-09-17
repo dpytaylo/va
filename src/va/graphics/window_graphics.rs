@@ -3,11 +3,11 @@ use std::cell::{Cell, RefCell};
 use std::cmp::{max, min};
 use std::sync::Arc;
 
-use anyhow::bail;
+use anyhow::{bail, Context};
 use vulkano::device::{Device, Queue};
 use vulkano::format::Format;
 use vulkano::image::{ImageUsage, SwapchainImage};
-use vulkano::swapchain::{Surface, Swapchain};
+use vulkano::swapchain::{Surface, Swapchain, SurfaceInfo, SwapchainCreateInfo};
 
 pub struct WindowGraphics {
     surface: Arc<Surface<winit::window::Window>>,
@@ -70,46 +70,33 @@ impl WindowGraphics {
         Vec<Arc<SwapchainImage<winit::window::Window>>>,
     )> 
     {
-        let caps = surface.capabilities(device.physical_device())?;
+        let physical = device.physical_device();
+        let caps = physical.surface_capabilities(&surface, SurfaceInfo::default())?;
 
-        // NOTE:
-        // On some drivers the swapchain dimensions are specified by `caps.current_extent` and the
-        // swapchain size must use these dimensions.
-        // These dimensions are always the same as the window dimensions.
-        let dimensions: [u32; 2] = surface.window().inner_size().into();
+        let supported_formats = physical.surface_formats(&surface, SurfaceInfo::default())
+            .context("failed to create Swapchain")?;
 
-        let buffer_count = match caps.max_image_count {
-            Some(limit) => min(max(2, caps.min_image_count), limit),
-            None => max(2, caps.min_image_count),
-        };
-
-        let transform = caps.current_transform;
-
-        if caps.supported_formats.is_empty() {
-            bail!("no supported formats for swapchain");
+        if supported_formats.is_empty() {
+            bail!("no supported formats for Swapchain");
         }
 
-        let (format, color_space) = *caps.supported_formats.iter().find(|&val| val.0 == Format::B8G8R8A8_SRGB)
-            .unwrap_or_else(|| &caps.supported_formats[0]);
+        let image_format = supported_formats.iter()
+            .find(|&val| val.0 == Format::B8G8R8A8_SRGB)
+            .unwrap_or_else(|| &supported_formats[0]);
 
-        let usage = ImageUsage::color_attachment(); // Only color attachment
-        let composite_alpha = caps
-            .supported_composite_alpha
-            .iter()
-            .next()
-            .expect("no supported composite alpha is supported");
-
-        Ok(Swapchain::start(device, surface)
-            .num_images(buffer_count)
-            .format(format)
-            .color_space(color_space)
-            .dimensions(dimensions)
-            .usage(usage)
-            .sharing_mode(&queue)
-            .transform(transform)
-            .composite_alpha(composite_alpha)
-            .build()?
-        )
+        Ok(Swapchain::new(
+            Arc::clone(&device),
+            Arc::clone(&surface),
+            SwapchainCreateInfo {
+                min_image_count: caps.min_image_count,
+                image_format: Some(image_format.0),
+                image_color_space: image_format.1,
+                image_extent: surface.window().inner_size().into(),
+                image_usage: ImageUsage::color_attachment(),
+                composite_alpha: caps.supported_composite_alpha.iter().next().context("failed to create swapchain")?,
+                ..Default::default()
+            },
+        ).context("failed to create swapchain")?)
     }
 
     // TODO

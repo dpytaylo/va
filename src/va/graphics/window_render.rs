@@ -9,8 +9,8 @@ use vulkano::device::Device;
 use vulkano::format::Format;
 use vulkano::image::{view::ImageView, ImageAccess, ImageDimensions, SwapchainImage};
 use vulkano::pipeline::graphics::viewport::Viewport;
-use vulkano::render_pass::{Framebuffer, RenderPass, RenderPassCreationError};
-use vulkano::swapchain::{self, AcquireError, SwapchainCreationError};
+use vulkano::render_pass::{Framebuffer, RenderPass, RenderPassCreationError, FramebufferCreateInfo};
+use vulkano::swapchain::{self, AcquireError, SwapchainCreationError, SwapchainCreateInfo};
 use vulkano::sync::{self, FlushError, GpuFuture};
 
 use crate::global::Va;
@@ -30,7 +30,7 @@ pub struct WindowRender {
 impl WindowRender {
     pub fn new(device: Arc<Device>, window_graphics: &WindowGraphics) -> anyhow::Result<Self> {
         let render_pass =
-            Self::create_render_pass(Arc::clone(&device), window_graphics.swapchain().format())?;
+            Self::create_render_pass(Arc::clone(&device), window_graphics.swapchain().image_format())?;
         let (viewport, framebuffers) = Self::create_viewport_and_framebuffers(
             window_graphics.take_images(),
             Arc::clone(&render_pass),
@@ -88,10 +88,19 @@ impl WindowRender {
         let mut framebuffers = Vec::with_capacity(images.len());
         for image in images {
             let view =
-                ImageView::new(image).context("failed to create image view for the framebuffer")?;
+                ImageView::new_default(image).context("failed to create image view for the framebuffer")?;
 
-            let framebuffer_builder = Framebuffer::start(Arc::clone(&render_pass)).add(view)?;
-            framebuffers.push(framebuffer_builder.build()?);
+            let framebuffer_create_info = FramebufferCreateInfo {
+                attachments: vec![view],
+                ..Default::default()
+            };
+
+            let framebuffer = Framebuffer::new(
+                Arc::clone(&render_pass),
+                framebuffer_create_info,
+            )?;
+
+            framebuffers.push(framebuffer);
         }
 
         Ok((viewport, framebuffers))
@@ -178,17 +187,18 @@ impl WindowRender {
 
     fn recreate_swapchain(&self, window_graphics: &WindowGraphics) -> anyhow::Result<()> {
         let dimensions = window_graphics.surface().window().inner_size().into();
+        let swapchain = window_graphics.swapchain();
 
-        let (swapchain, images) = match window_graphics
-            .swapchain()
-            .recreate()
-            .dimensions(dimensions)
-            .build()
+        let (swapchain, images) = match swapchain
+            .recreate(SwapchainCreateInfo {
+                image_extent: dimensions,
+                ..swapchain.create_info()
+            })
         {
             Ok(val) => val,
             // This error tends to happen when the user is manually resizing the window.
             // Simply restarting the loop is the easiest way to fix this issue.
-            Err(SwapchainCreationError::UnsupportedDimensions) => return Ok(()),
+            Err(SwapchainCreationError::ImageExtentNotSupported { .. }) => return Ok(()),
             Err(err) => bail!(err),
         };
 

@@ -4,7 +4,8 @@ use std::mem;
 use std::rc::Rc;
 
 use thiserror::Error;
-use vulkano::memory::DeviceMemoryAllocError;
+use vulkano::buffer::BufferContents;
+use vulkano::memory::DeviceMemoryAllocationError;
 
 use crate::graphics::mesh::Mesh;
 use crate::graphics::layer_render_data::{LayerRenderData, AbstractLayerRenderData};
@@ -61,8 +62,9 @@ impl Layer {
         })
     }
 
-    pub fn add_render_data<T>(&self, render_data: RenderData<T>) -> Result<LayerRenderDataHandle<T>, DeviceMemoryAllocError>
+    pub fn add_render_data<T>(&self, render_data: RenderData<T>) -> Result<LayerRenderDataHandle<T>, DeviceMemoryAllocationError>
         where T: Clone + 'static,
+              [T]: BufferContents,
     {
         let (layer_render_data, handle) = LayerRenderData::new(
             Rc::clone(&self.graphics),
@@ -75,7 +77,8 @@ impl Layer {
     }
 
     pub fn remove_render_data<T>(&self, handle: LayerRenderDataHandle<T>) -> Rc<Mesh<T>> 
-        where T: Clone + 'static
+        where T: Clone + 'static,
+              [T]: BufferContents,
     {
         let layer_render_data = self.render_data.borrow_mut()[handle.layer_render_data_index()]
             .take()

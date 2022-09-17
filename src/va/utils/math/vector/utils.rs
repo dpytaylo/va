@@ -195,6 +195,38 @@ macro_rules! impl_common_vector_methods {
             }
         }
 
+        // bytemuck
+        unsafe impl Zeroable for $vector<u8> {}
+        unsafe impl Zeroable for $vector<i8> {}
+        unsafe impl Zeroable for $vector<u16> {}
+        unsafe impl Zeroable for $vector<i16> {}
+        unsafe impl Zeroable for $vector<u32> {}
+        unsafe impl Zeroable for $vector<i32> {}
+        unsafe impl Zeroable for $vector<u64> {}
+        unsafe impl Zeroable for $vector<i64> {}
+        unsafe impl Zeroable for $vector<usize> {}
+        unsafe impl Zeroable for $vector<isize> {}
+        unsafe impl Zeroable for $vector<u128> {}
+        unsafe impl Zeroable for $vector<i128> {}
+        unsafe impl Zeroable for $vector<f32> {}
+        unsafe impl Zeroable for $vector<f64> {}
+
+        // bytemuck
+        unsafe impl Pod for $vector<u8> {}
+        unsafe impl Pod for $vector<i8> {}
+        unsafe impl Pod for $vector<u16> {}
+        unsafe impl Pod for $vector<i16> {}
+        unsafe impl Pod for $vector<u32> {}
+        unsafe impl Pod for $vector<i32> {}
+        unsafe impl Pod for $vector<u64> {}
+        unsafe impl Pod for $vector<i64> {}
+        unsafe impl Pod for $vector<usize> {}
+        unsafe impl Pod for $vector<isize> {}
+        unsafe impl Pod for $vector<u128> {}
+        unsafe impl Pod for $vector<i128> {}
+        unsafe impl Pod for $vector<f32> {}
+        unsafe impl Pod for $vector<f64> {}
+
         impl<T> $vector<T>
             where T: Number,
         {
