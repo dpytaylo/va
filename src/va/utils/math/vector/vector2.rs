@@ -2,6 +2,8 @@ use std::fmt::Display;
 use std::iter::Iterator;
 use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign};
 
+use bytemuck::{Pod, Zeroable};
+
 use crate::va::utils::math::is_equal::IsCopyTypeEqual;
 use crate::va::utils::cast::Cast;
 use crate::va::utils::number::{Number, Float, Integer, Pow};
