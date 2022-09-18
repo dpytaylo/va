@@ -13,7 +13,6 @@ use crate::utils::math::vector::vector3::Vec3;
 use crate::utils::math::vector::vector4::Vec4;
 
 use super::buffer::buffer2d::{Buffer2d, Buffer2dRead};
-use super::rasterizate::Rasterizate;
 
 #[derive(Clone, Copy)]
 enum SweepDirection {

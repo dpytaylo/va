@@ -21,7 +21,6 @@ use std::sync::Arc;
 use anyhow::{bail, Context, Ok};
 use log::{error, info};
 
-use vulkano::command_buffer::DebugUtilsError;
 use vulkano::device::{DeviceCreateInfo, QueueCreateInfo};
 use vulkano::device::physical::PhysicalDeviceType;
 use vulkano::device::{
@@ -30,7 +29,7 @@ use vulkano::device::{
 };
 use vulkano::instance::InstanceCreateInfo;
 use vulkano::instance::debug::{DebugUtilsMessenger, DebugUtilsMessengerCreateInfo};
-use vulkano::instance::{self, Instance, LayerProperties, Version};
+use vulkano::instance::{self, Instance, LayerProperties};
 use vulkano::swapchain::Surface;
 use vulkano::sync::GpuFuture;
 

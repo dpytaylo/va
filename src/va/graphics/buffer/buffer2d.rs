@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::path::Path;
-use std::ptr;
 use std::slice::{Iter, IterMut};
 use std::vec::IntoIter;
 
