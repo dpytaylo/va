@@ -3,10 +3,9 @@ use std::borrow::Borrow;
 use std::fmt::Debug;
 use std::iter::{Map, self, Take, Repeat, Zip};
 use std::mem::replace;
-use std::ops::{Sub, Mul};
 
 use crate::utils::math::is_equal::IsCopyTypeEqual;
-use crate::utils::{math::vector::vector2::Vec2, number::Number, cast::Cast};
+use crate::utils::{math::vector::vector2::Vec2, number::Number};
 use super::axis::Axis2d;
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]

@@ -1,11 +1,6 @@
 use std::cmp::{min, max};
-use std::rc::Rc;
 
-use png::ColorType;
-
-use crate::manager::Manager;
-use crate::utils::math::geometry::axis::Axis2d;
-use crate::utils::math::geometry::curve::{QuadCurveIntPointsIter, CubeCurveIntPointsIter, QuadCurveIntPointsByAxisIter, CubeCurveIntPointsByAxisIter};
+use crate::utils::math::geometry::curve::{QuadCurveIntPointsIter, CubeCurveIntPointsIter};
 use crate::utils::math::geometry::line::LinePointsIter;
 use crate::utils::math::geometry::point::PointGeometry;
 use crate::utils::math::geometry::rect::Rect;
@@ -15,7 +10,7 @@ use crate::va::utils::cast::Cast;
 use crate::va::utils::math::vector::vector2::Vec2;
 use crate::va::utils::math::vector::vector4::Vec4;
 
-use super::buffer::buffer2d::{Buffer2d, Buffer2dMutSlice, Buffer2dWrite, Buffer2dRead};
+use super::buffer::buffer2d::{Buffer2d, Buffer2dWrite};
 
 pub trait SimpleRasterizate<T>: Buffer2dWrite<T> 
     where T: Clone,

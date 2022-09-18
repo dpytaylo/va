@@ -3,7 +3,6 @@ use std::ops::{Add, Index, IndexMut, Mul, Sub};
 use crate::utils::math::vector::vector3::Vec3;
 use crate::utils::number::{Number, Float};
 use crate::utils::math::vector::vector2::Vec2;
-use crate::utils::math::vector::vector4::Vec4;
 use crate::utils::math::is_equal::IsCopyTypeEqual;
 
 const COLUMN_COUNT: usize = 3;

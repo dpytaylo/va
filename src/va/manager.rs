@@ -6,21 +6,21 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, ensure};
+use anyhow::{bail, Context};
 use log::info;
 use png::{BitDepth, ColorType};
 use thiserror::Error;
-use ttf_parser::{Face, OutlineBuilder};
+use ttf_parser::Face;
 
 use vulkano::format::Format;
-use vulkano::image::view::{ImageView, ImageViewCreateInfo};
+use vulkano::image::view::ImageView;
 use vulkano::image::{ImageDimensions, ImmutableImage, MipmapsCount};
 use vulkano::shader::{ShaderCreationError, ShaderModule};
 
 use crate::graphics::buffer::buffer2d::{Buffer2d, Buffer2dRead, save_buffer};
-use crate::graphics::glyph_render::{GlyphRender, GlyphRenderBuilder};
+use crate::graphics::glyph_render::GlyphRenderBuilder;
 use crate::graphics::image::save_image;
-use crate::graphics::rasterizate::{Rasterizate, SimpleRasterizate};
+use crate::graphics::rasterizate::SimpleRasterizate;
 use crate::utils::cast::Cast;
 use crate::utils::math::geometry::rect::Rect;
 use crate::utils::math::matrix::matrix3x3::Mat3x3;
