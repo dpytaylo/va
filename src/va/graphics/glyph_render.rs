@@ -12,7 +12,7 @@ use crate::utils::math::vector::vector2::Vec2;
 use crate::utils::math::vector::vector3::Vec3;
 use crate::utils::math::vector::vector4::Vec4;
 
-use super::buffer::buffer2d::{Buffer2d, Buffer2dRead};
+use super::{buffer::buffer2d::{Buffer2d, Buffer2dRead}, rasterizate::Rasterizate};
 
 #[derive(Clone, Copy)]
 enum SweepDirection {
@@ -214,12 +214,12 @@ impl GlyphRender {
             }
         }
 
-        // for (_, points) in &self.outlines {
-        //     for i in 1..points.len() {
-        //         buffer.draw_line(points[i - 1].round().cast(), points[i].round().cast(), Vec4::from(1.0));
-        //     }
+        for (_, points) in &self.outlines {
+            for i in 1..points.len() {
+                buffer.draw_line(points[i - 1].round().cast(), points[i].round().cast(), Vec4::from(1.0));
+            }
 
-        //     buffer.draw_line((*points.last().unwrap()).round().cast(), points[0].round().cast(), Vec4::from(1.0));
-        // }
+            buffer.draw_line((*points.last().unwrap()).round().cast(), points[0].round().cast(), Vec4::from(1.0));
+        }
     }
 }
