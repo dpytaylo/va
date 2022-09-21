@@ -12,7 +12,7 @@ use crate::utils::math::vector::vector2::Vec2;
 use crate::utils::math::vector::vector3::Vec3;
 use crate::utils::math::vector::vector4::Vec4;
 
-use super::buffer::buffer2d::{Buffer2d, Buffer2dRead};
+use super::{buffer::buffer2d::{Buffer2d, Buffer2dRead}, rasterizate::Rasterizate};
 
 #[derive(Clone, Copy)]
 enum SweepDirection {
@@ -21,7 +21,7 @@ enum SweepDirection {
 }
 
 pub struct GlyphRenderBuilder {
-    transform: Mat3x3<f32>,
+    transform: Mat3x3<f64>,
 
     points: Vec<Vec2<f32>>,
     prev_point: Vec2<f32>,
@@ -30,7 +30,7 @@ pub struct GlyphRenderBuilder {
 }
 
 impl GlyphRenderBuilder {
-    pub fn new(transform: Mat3x3<f32>) -> Self {
+    pub fn new(transform: Mat3x3<f64>) -> Self {
         Self {
             transform,
 
@@ -46,7 +46,8 @@ impl GlyphRenderBuilder {
     }
 
     fn do_transform(&self, point: Vec2<f32>) -> Vec2<f32> {
-        (self.transform * Vec3::new(point.x, point.y, 1.0)).xy()
+        let vector: Vec3<f64> = Vec3::new(point.x, point.y, 1.0).into();
+        (self.transform * vector).xy().cast()
     }
 
     pub fn push_outline(&mut self) {
@@ -123,6 +124,8 @@ impl OutlineBuilder for GlyphRenderBuilder {
     }
 
     fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
+        unimplemented!(); // TODO
+
         let p1 = self.do_transform(Vec2::new(x1, y1));
         let p2 = self.do_transform(Vec2::new(x2, y2));
         let p3 = self.do_transform(Vec2::new(x, y));
@@ -214,12 +217,12 @@ impl GlyphRender {
             }
         }
 
-        // for (_, points) in &self.outlines {
-        //     for i in 1..points.len() {
-        //         buffer.draw_line(points[i - 1].round().cast(), points[i].round().cast(), Vec4::from(1.0));
-        //     }
+        for (_, points) in &self.outlines {
+            for i in 1..points.len() {
+                buffer.draw_line(points[i - 1].round().cast(), points[i].round().cast(), Vec4::from(1.0));
+            }
 
-        //     buffer.draw_line((*points.last().unwrap()).round().cast(), points[0].round().cast(), Vec4::from(1.0));
-        // }
+            buffer.draw_line((*points.last().unwrap()).round().cast(), points[0].round().cast(), Vec4::from(1.0));
+        }
     }
 }

@@ -1,6 +1,6 @@
 use std::ops::{Add, Sub};
 
-use crate::utils::math::vector::vector2::Vec2;
+use crate::utils::{math::vector::vector2::Vec2, number::Float};
 use crate::utils::number::Number;
 
 use super::{line::{CrossLineResult, self}, point::PointGeometry};
@@ -482,6 +482,17 @@ impl<T> Rect<T>
         }
         else {
             None
+        }
+    }
+}
+
+impl<T> Rect<T>
+    where T: Number + Float,
+{
+    pub fn round(&self) -> Self {
+        Self {
+            p1: self.p1.round(),
+            p2: self.p2.round(),
         }
     }
 }

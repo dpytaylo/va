@@ -1,3 +1,5 @@
+pub mod font_render_state;
+pub mod font;
 pub mod framerate_counter;
 pub mod glyph_render;
 pub mod image;
@@ -18,7 +20,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Ok};
+use anyhow::{bail, Context};
 use log::{error, info};
 
 use vulkano::device::{DeviceCreateInfo, QueueCreateInfo};
@@ -124,9 +126,7 @@ impl Graphics {
             ..InstanceCreateInfo::application_from_cargo_toml()
         };
 
-        dbg!();
         let instance = Instance::new(create_info)?;
-        dbg!();
 
         let debug = unsafe {
             DebugUtilsMessenger::new(
@@ -137,8 +137,6 @@ impl Graphics {
             ).context("failed to create DebugUtilsMessenger")?
         };
 
-        dbg!();
-        
         Ok((instance, debug))
     }
 
@@ -146,20 +144,15 @@ impl Graphics {
         &self,
         event_loop: &EventLoopWindowTarget<()>,
     ) -> anyhow::Result<()> {
-        dbg!();
         let test_surface = winit::window::WindowBuilder::new()
             .with_visible(false)
             .build_vk_surface(event_loop, Arc::clone(&self.instance))
             .context("failed to build surface")?;
 
-        dbg!();
         let (physical, queue_family) =
             Graphics::get_physical_device(&self.instance, &test_surface)?;
 
-        dbg!();
         let (device, mut queues) = Graphics::create_device(physical, queue_family)?;
-        dbg!();
-
         let properies = device.physical_device().properties();
         info!(
             "Device: {} ({:?})",
@@ -186,11 +179,10 @@ impl Graphics {
                 p.queue_families()
                     .find(|&q| {
                         q.supports_graphics() 
-                        // && match q.supports_surface(surface) {
-                        //     Ok(val) => val,
-                        //     Err(err) => panic!("PhysicalDevice enumerate error: {:?}", err),
-                        // }
-                        && q.supports_surface(surface).unwrap()
+                        && match q.supports_surface(surface) {
+                            Ok(val) => val,
+                            Err(err) => panic!("PhysicalDevice enumerate error: {:?}", err),
+                        }
                     })
                     .map(|q| (p, q))
             })

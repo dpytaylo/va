@@ -18,6 +18,7 @@ use vulkano::image::{ImageDimensions, ImmutableImage, MipmapsCount};
 use vulkano::shader::{ShaderCreationError, ShaderModule};
 
 use crate::graphics::buffer::buffer2d::{Buffer2d, Buffer2dRead, save_buffer};
+use crate::graphics::font::{Font, self};
 use crate::graphics::glyph_render::GlyphRenderBuilder;
 use crate::graphics::image::save_image;
 use crate::graphics::rasterizate::SimpleRasterizate;
@@ -224,90 +225,20 @@ impl Manager {
         Ok(ImageView::new_default(image)?)
     }
 
-    pub fn load_font(&self, font_name: &str, px_size: u32) -> anyhow::Result<Arc<ImageView<ImmutableImage>>>
+    pub fn load_font<T>(&self, font_name: T, px_size: u32) -> anyhow::Result<Arc<ImageView<ImmutableImage>>>
+        where T: ToString,
     {
-        if px_size == 0 {
-            bail!("invalid font px size ({px_size} px)");
-        }
+        let font_name = font_name.to_string();
 
-        let data = self.load_binary_relative("fonts/".to_string() + font_name)?;
+        let data = self.load_binary_relative(format!("fonts/{font_name}"))?;
+        let (font, future) = Font::new(
+            font_name, 
+            &data,
+            px_size,
+            self.graphics.queue().expect("no available queue"),
+        ).context("failed to create font")?;
 
-        //let index = ttf_parser::fonts_in_collection(&data).context("invalid font")?;
-        let face = Face::from_slice(&data, 0).context("invalid font")?;
-
-        let capital_height = face.capital_height().context("no capital height")?;
-        if capital_height < 1 {
-            bail!("invalid capital height ({capital_height})");
-        }
-
-        let px_size: f64 = px_size.into();
-        let capital_height: f64 = capital_height.into();
-        let k = (px_size / capital_height) as f32;
-
-        let mut buffer2d = Buffer2d::new(
-            Vec2::new(800, 200),
-            Vec4::from(0.0),
-        );
-
-        // TODO
-        buffer2d.fill(Vec4::new(0.0, 0.0, 0.0, 1.0));
-                
-        let mut offset = 0.0;
-        for char in ('A'..='Z').chain('a'..='z') {
-        //for char in 'O'..='O' {
-            let glyph_id = face.glyph_index(char).context("invalid glyph index")?;
-            let bounding_box = face.glyph_bounding_box(glyph_id).context("invalid glyph bounding box")?;
-    
-            let bounding_box: Rect<f32> = Rect::new(
-                Vec2::new(bounding_box.x_min, bounding_box.y_min).into(),
-                Vec2::new(bounding_box.x_max, bounding_box.y_max).into(),
-            );
-
-            //dbg!(bounding_box);
-    
-            //let transform = Mat3x3::with_scale(Vec2::new(k, k));
-            let translate = Mat3x3::with_translate(Vec2::new(-bounding_box.p1.x, -bounding_box.p1.y));
-            let scale = Mat3x3::with_scale(Vec2::new(k, -k));
-    
-            let transform = scale * translate;
-            
-            let height_rect = Rect::new(
-                (transform * Vec3::new(bounding_box.p1.x, bounding_box.p1.y, 0.0)).xy(), 
-                (transform * Vec3::new(bounding_box.p2.x, bounding_box.p2.y, 0.0)).xy(),
-            );
-
-            //dbg!(bounding_box);
-            
-            let box_height = height_rect.p1.y - height_rect.p2.y;
-            //dbg!(box_height);
-
-            let translate = Mat3x3::with_translate(Vec2::new(offset, box_height));
-            let transform = translate * transform;
-    
-            let bounding_box = Rect::new(
-                (transform * Vec3::new(bounding_box.p1.x, bounding_box.p1.y, 0.0)).xy(), 
-                (transform * Vec3::new(bounding_box.p2.x, bounding_box.p2.y, 0.0)).xy(),
-            );
-
-            //dbg!(bounding_box);
-    
-            let mut builder = GlyphRenderBuilder::new(transform);
-            loop {
-                let _ = face.outline_glyph(
-                    glyph_id, 
-                    &mut builder
-                ).context("no raster glyph image")?;
-    
-                if builder.was_closed() {
-                    break;
-                }
-            };
-
-            let render = builder.build();
-            render.rasterizate(&mut buffer2d);
-
-            offset += bounding_box.p2.x;
-        }
+        let Font { buffer2d, image, .. } = font;
 
         let size: Vec2<u32> = buffer2d.size().cast();
         let (width, height) = size.into();
@@ -320,18 +251,6 @@ impl Manager {
             width, 
             height,
         )?;
-
-        const FORMAT: Format = Format::R8G8B8A8_SRGB;
-        let (image, future) = match ImmutableImage::from_iter(
-            data,
-            ImageDimensions::Dim2d {width, height, array_layers: 1},
-            MipmapsCount::One,
-            FORMAT, // TODO choose srgb or default
-            self.graphics.queue().expect("no available queue"),
-        ) {
-            Ok(val) => val,
-            Err(err) => bail!(format!("{} ({:?})", err, FORMAT)),
-        };
         
         self.graphics.new_future(Box::new(future));
 
