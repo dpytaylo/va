@@ -15,14 +15,6 @@ use super::buffer::buffer2d::{Buffer2d, Buffer2dWrite};
 pub trait SimpleRasterizate<T>: Buffer2dWrite<T> 
     where T: Clone,
 {
-    fn fill(&mut self, value: T) {
-        for y in 0..self.height() {
-            for x in 0..self.width() {
-                self.set_value(Vec2::new(x, y), value.clone());
-            }
-        }
-    }
-
     fn pixel(&self, position: Vec2<i32>) -> Option<T> {
         let size = (self.size() - 1).cast(); 
         if !position.is_inside_box(Rect::new(Vec2::ZERO, size)) {
@@ -31,6 +23,23 @@ pub trait SimpleRasterizate<T>: Buffer2dWrite<T>
 
         let position = position.cast();
         Some(self.value(position))
+    }
+
+    unsafe fn draw_point_unchecked(&mut self, point: Vec2<i32>, value: T) {
+        self.set_value(
+            point.cast(),
+            value,
+        );
+    }
+
+    fn fill(&mut self, value: T) {
+        for y in 0..self.height() {
+            for x in 0..self.width() {
+                unsafe {
+                    self.set_value(Vec2::new(x, y), value.clone());
+                }
+            }
+        }
     }
 
     fn draw_point(&mut self, point: Vec2<i32>, value: T) {
@@ -46,16 +55,13 @@ pub trait SimpleRasterizate<T>: Buffer2dWrite<T>
         );
     }
 
-    unsafe fn draw_point_unchecked(&mut self, point: Vec2<i32>, value: T) {
-        self.set_value(
-            point.cast(),
-            value,
-        );
-    }
-
     fn draw_horizontal_line(&mut self, x0: i32, x1: i32, y: i32, value: T) {
+        if self.height() == 0 {
+            return;
+        }
+
         if y < 0 
-            || y as usize + 1 > self.height() 
+            || y as usize > self.height() - 1 
         {
             return;
         }
@@ -71,13 +77,73 @@ pub trait SimpleRasterizate<T>: Buffer2dWrite<T>
             self.draw_point(Vec2::new(x, y), value.clone());
         }
     }
+
+    fn draw_vertical_line(&mut self, y0: i32, y1: i32, x: i32, value: T) {
+        if self.width() == 0 {
+            return;
+        }
+
+        if x < 0 
+            || x as usize > self.width() - 1 
+        {
+            return;
+        }
+
+        let (y0, y1) = if y1 < y0 {
+            (y1, y0)
+        }
+        else {
+            (y0, y1)
+        };
+
+        for y in y0..=y1 {
+            self.draw_point(Vec2::new(x, y), value.clone());
+        }
+    }
+
+    fn draw_rect_border(&mut self, p1: Vec2<i32>, p2: Vec2<i32>, value: T) {
+        self.draw_horizontal_line(p1.x, p2.x, p1.y, value.clone());
+        self.draw_horizontal_line(p1.x, p2.x, p2.y, value.clone());
+
+        self.draw_vertical_line(p1.y, p2.y, p1.x, value.clone());
+        self.draw_vertical_line(p1.y, p2.y, p2.x, value);
+    }
+
+    fn draw_rect(&mut self, rect: Rect<i32>, value: T) {
+        let left_top = Vec2::new(
+            max(0, min((self.width() - 1) as i32, rect.p1.x)), 
+            max(0, min((self.height() - 1) as i32, rect.p1.y)),
+        );
+
+        let right_bottom = Vec2::new(
+            max(0, min(rect.p2.x, (self.width() - 1) as i32)),
+            max(0, min(rect.p2.y, (self.height() - 1) as i32)),
+        );
+
+        if left_top > right_bottom {
+            return;
+        }
+
+        for y in left_top.y..right_bottom.y + 1 {
+            for x in left_top.x..right_bottom.x + 1  {
+                unsafe {
+                    self.draw_point_unchecked(Vec2::new(x, y), value.clone());
+                }
+            }
+        }
+    }
 }
 
 impl<T: Clone, U: Buffer2dWrite<T>> SimpleRasterizate<T> for U {}
 
 pub trait Rasterizate: SimpleRasterizate<Vec4<f32>> {
     fn draw_line(&mut self, p0: Vec2<i32>, p1: Vec2<i32>, color: Vec4<f32>) {
-        let size: Vec2<i32> = self.size().cast();
+        let size = self.size();
+        if size.x == 0 || size.y == 0 {
+            return;
+        }
+
+        let size: Vec2<i32> = size.try_into().unwrap_or(Vec2::MAX);
         let rect = Rect::new(Vec2::ZERO, size - 1);
 
         let (point, point2) = match rect.is_crossing_by_line(p0, p1) {
@@ -102,7 +168,12 @@ pub trait Rasterizate: SimpleRasterizate<Vec4<f32>> {
     }
 
     fn draw_dbg_line(&mut self, p0: Vec2<i32>, p1: Vec2<i32>, color: Vec4<f32>) {
-        let size: Vec2<i32> = self.size().cast();
+        let size = self.size();
+        if size.x == 0 || size.y == 0 {
+            return;
+        }
+
+        let size: Vec2<i32> = size.try_into().unwrap_or(Vec2::MAX);
         let rect = Rect::new(Vec2::ZERO, size - 1);
 
         let (point, point2) = match rect.is_crossing_by_line(p0, p1) {
@@ -127,7 +198,12 @@ pub trait Rasterizate: SimpleRasterizate<Vec4<f32>> {
     }
 
     fn draw_wu_line(&mut self, p0: Vec2<i32>, p1: Vec2<i32>, color: Vec3<f32>) {
-        let size: Vec2<i32> = self.size().try_into().unwrap_or(Vec2::MAX);
+        let size = self.size();
+        if size.x == 0 || size.y == 0 {
+            return;
+        }
+
+        let size: Vec2<i32> = size.try_into().unwrap_or(Vec2::MAX);
         let rect = Rect::new(Vec2::ZERO, size - 1);
 
         let (p0, p1) = match rect.is_crossing_by_line(p0, p1) {
@@ -241,32 +317,13 @@ pub trait Rasterizate: SimpleRasterizate<Vec4<f32>> {
         }
     }
 
-    fn draw_rect(&mut self, rect: Rect<i32>, color: Vec4<f32>) {
-        let left_top = Vec2::new(
-            max(0, min((self.width() - 1) as i32, rect.p1.x)), 
-            max(0, min((self.height() - 1) as i32, rect.p1.y)),
-        );
-
-        let right_bottom = Vec2::new(
-            max(0, min(rect.p2.x, (self.width() - 1) as i32)),
-            max(0, min(rect.p2.y, (self.height() - 1) as i32)),
-        );
-
-        if left_top > right_bottom {
+    fn draw_quad_curve(&mut self, p0: Vec2<i32>, p1: Vec2<i32>, p2: Vec2<i32>, color: Vec4<f32>) {
+        let size = self.size();
+        if size.x == 0 || size.y == 0 {
             return;
         }
 
-        for y in left_top.y..right_bottom.y + 1 {
-            for x in left_top.x..right_bottom.x + 1  {
-                unsafe {
-                    self.draw_point_unchecked(Vec2::new(x, y), color);
-                }
-            }
-        }
-    }
-
-    fn draw_quad_curve(&mut self, p0: Vec2<i32>, p1: Vec2<i32>, p2: Vec2<i32>, color: Vec4<f32>) {
-        let size: Vec2<_> = self.size().try_into().unwrap_or(Vec2::MAX);
+        let size: Vec2<i32> = size.try_into().unwrap_or(Vec2::MAX);
         let rect = Rect::new(Vec2::ZERO, size - 1);
 
         if !rect.is_crossing_by_line(p0.into(), p1.into()).is_some()
@@ -419,7 +476,12 @@ pub trait Rasterizate: SimpleRasterizate<Vec4<f32>> {
         p3: Vec2<i32>,
         color: Vec4<f32>,
     ) {
-        let size: Vec2<_> = self.size().try_into().unwrap_or(Vec2::MAX);
+        let size = self.size();
+        if size.x == 0 || size.y == 0 {
+            return;
+        }
+
+        let size: Vec2<i32> = size.try_into().unwrap_or(Vec2::MAX);
         let rect = Rect::new(Vec2::ZERO, size - 1);
 
         if !rect.is_crossing_by_line(p0.into(), p1.into()).is_some()

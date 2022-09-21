@@ -18,6 +18,7 @@ use vulkano::image::{ImageDimensions, ImmutableImage, MipmapsCount};
 use vulkano::shader::{ShaderCreationError, ShaderModule};
 
 use crate::graphics::buffer::buffer2d::{Buffer2d, Buffer2dRead, save_buffer};
+use crate::graphics::font::{Font, self};
 use crate::graphics::glyph_render::GlyphRenderBuilder;
 use crate::graphics::image::save_image;
 use crate::graphics::rasterizate::SimpleRasterizate;
@@ -224,11 +225,20 @@ impl Manager {
         Ok(ImageView::new_default(image)?)
     }
 
-    pub fn load_font(&self, font_name: &str, px_size: u32) -> anyhow::Result<Arc<ImageView<ImmutableImage>>>
+    pub fn load_font<T>(&self, font_name: T, px_size: u32) -> anyhow::Result<Arc<ImageView<ImmutableImage>>>
+        where T: ToString,
     {
-        let data = self.load_binary_relative("fonts/".to_string() + font_name)?;
+        let font_name = font_name.to_string();
 
-        FontInfo::
+        let data = self.load_binary_relative(format!("fonts/{font_name}"))?;
+        let (font, future) = Font::new(
+            font_name, 
+            &data,
+            px_size,
+            self.graphics.queue().expect("no available queue"),
+        ).context("failed to create font")?;
+
+        let Font { buffer2d, image, .. } = font;
 
         let size: Vec2<u32> = buffer2d.size().cast();
         let (width, height) = size.into();
@@ -241,18 +251,6 @@ impl Manager {
             width, 
             height,
         )?;
-
-        const FORMAT: Format = Format::R8G8B8A8_SRGB;
-        let (image, future) = match ImmutableImage::from_iter(
-            data,
-            ImageDimensions::Dim2d {width, height, array_layers: 1},
-            MipmapsCount::One,
-            FORMAT, // TODO choose srgb or default
-            self.graphics.queue().expect("no available queue"),
-        ) {
-            Ok(val) => val,
-            Err(err) => bail!(format!("{} ({:?})", err, FORMAT)),
-        };
         
         self.graphics.new_future(Box::new(future));
 

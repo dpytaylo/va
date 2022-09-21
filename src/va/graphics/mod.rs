@@ -1,3 +1,4 @@
+pub mod font_render_state;
 pub mod font;
 pub mod framerate_counter;
 pub mod glyph_render;
