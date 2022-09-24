@@ -3,14 +3,15 @@ use std::{rc::Rc, cell::Ref, sync::Arc};
 use anyhow::Context;
 use bytemuck::{Zeroable, Pod};
 use ttf_parser::gpos::VariationDevice;
-use vulkano::{buffer::CpuAccessibleBuffer, render_pass::{Framebuffer, Subpass, RenderPass}, pipeline::{graphics::{viewport::{Viewport, ViewportState}, color_blend::ColorBlendState, input_assembly::InputAssemblyState, vertex_input::BuffersDefinition}, GraphicsPipeline, Pipeline}, command_buffer::{PrimaryAutoCommandBuffer, RenderPassBeginInfo}, descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet}, image::{ImmutableImage, ImageViewAbstract, view::ImageView}, shader::ShaderModule, sampler::{Sampler, SamplerCreateInfo}, device::Device};
+use vulkano::{buffer::CpuAccessibleBuffer, render_pass::{Framebuffer, Subpass, RenderPass}, pipeline::{graphics::{viewport::{Viewport, ViewportState}, color_blend::ColorBlendState, input_assembly::InputAssemblyState, vertex_input::BuffersDefinition}, GraphicsPipeline, Pipeline}, command_buffer::{PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents, CommandBufferUsage, AutoCommandBufferBuilder}, descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet}, image::{ImmutableImage, ImageViewAbstract, view::ImageView}, shader::ShaderModule, sampler::{Sampler, SamplerCreateInfo}, device::Device, format::ClearValue};
 
 use crate::{utils::math::vector::vector2::Vec2, manager::Manager};
 
 use super::{render_state::RenderState, font::Font, Graphics, window_render::WindowRender};
 
 struct LabelRenderState {
-    image_view: Arc<ImageView<ImmutableImage>>,
+    graphics_pipeline: Arc<GraphicsPipeline>,
+    descriptor_set: Arc<PersistentDescriptorSet>,
 }
 
 #[repr(C)]
@@ -79,7 +80,8 @@ impl LabelRenderState {
         )?;
 
         Ok(Rc::new(Self {
-            image_view,
+            graphics_pipeline,
+            descriptor_set,
         }))
     }
 }

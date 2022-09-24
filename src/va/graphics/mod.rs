@@ -4,7 +4,6 @@ pub mod glyph_render;
 pub mod image;
 pub mod layer_render_data_handle;
 pub mod layer_render_data;
-pub mod layer_render_state;
 pub mod buffer;
 pub mod mesh;
 pub mod rasterizate;

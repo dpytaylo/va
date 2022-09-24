@@ -26,7 +26,6 @@ use vulkano::shader::{ShaderCreationError, ShaderModule};
 
 use crate::graphics::buffer::buffer2d::{Buffer2d, Buffer2dRead, save_buffer};
 use crate::graphics::font::{Font, self};
-use crate::graphics::layer_render_state::FontRenderStateVertex;
 use crate::graphics::glyph_render::GlyphRenderBuilder;
 use crate::graphics::image::save_image;
 use crate::graphics::rasterizate::SimpleRasterizate;
