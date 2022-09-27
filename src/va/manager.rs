@@ -1,5 +1,6 @@
 // abcdefghijklmnopqrstuvwxyz
 use std::cell::{RefCell, Ref};
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Cursor};
 use std::path::Path;
@@ -12,6 +13,7 @@ use png::{BitDepth, ColorType};
 use thiserror::Error;
 use ttf_parser::Face;
 
+use vulkano::device::Device;
 use vulkano::format::Format;
 use vulkano::image::view::ImageView;
 use vulkano::image::{ImageDimensions, ImmutableImage, MipmapsCount};
@@ -23,8 +25,7 @@ use vulkano::render_pass::{Subpass, RenderPass};
 use vulkano::shader::{ShaderCreationError, ShaderModule};
 
 use crate::graphics::buffer::buffer2d::{Buffer2d, Buffer2dRead, save_buffer};
-use crate::graphics::font::{Font, self};
-use crate::graphics::font_render_state::FontRenderStateVertex;
+use crate::graphics::font::{self, Font};
 use crate::graphics::glyph_render::GlyphRenderBuilder;
 use crate::graphics::image::save_image;
 use crate::graphics::rasterizate::SimpleRasterizate;
@@ -43,7 +44,8 @@ pub struct Manager {
     graphics: Rc<Graphics>,
     parent_directory: RefCell<String>,
 
-    texture2d_graphics_pipeline: Arc<GraphicsPipeline>,
+    shader_modules: HashMap<String, Arc<ShaderModule>>,
+    graphics_pipelines: HashMap<String, Arc<GraphicsPipeline>>,
 }
 
 #[derive(Debug, Error)]
@@ -55,6 +57,13 @@ pub enum ShaderLoadError {
     FailedToCreateShaderModule(#[from] ShaderCreationError),
 }
 
+#[derive(Debug, Display)]
+pub enum CommonGraphicsPipeline {
+    Texture2d,
+}
+
+static common_graphics_pipelines: HashMap<String, String> = HashMap::new();
+
 pub enum FontSize {
     Px(u32),
 
@@ -63,45 +72,14 @@ pub enum FontSize {
 }
 
 impl Manager {
-    pub fn new(graphics: Rc<Graphics>, render_pass: Arc<RenderPass>) -> Rc<Self> {
-        let device = graphics.device().expect("no available device");
-
-        let shader_module = unsafe { 
-            ShaderModule::from_bytes(self.graphics.device().expect("no device"), &data) 
-        }?;
-        
-        let subpass = Subpass::from(render_pass, 0).unwrap();
-        let graphics_pipeline = GraphicsPipeline::start()
-            .vertex_input_state(
-                BuffersDefinition::new()
-                    .vertex::<FontRenderStateVertex>(),
-            )
-            .vertex_shader(
-                vertex_shader
-                    .entry_point("main")
-                    .expect("no shader entry point"),
-                (),
-            )
-            .input_assembly_state(InputAssemblyState::new())
-            .viewport_state(ViewportState::viewport_dynamic_scissor_irrelevant())
-            .fragment_shader(
-                fragment_shader
-                    .entry_point("main")
-                    .expect("no shader entry point"),
-                (),
-            )
-            .color_blend_state(ColorBlendState::new(subpass.num_color_attachments()).blend_alpha())
-            .render_pass(subpass)
-            .build(device)?; // TODO: build_with_cache ?
-
+    pub fn new(graphics: Rc<Graphics>) -> Rc<Self> {
         Rc::new(Self {
             graphics,
             parent_directory: RefCell::default(),
-        })
-    }
 
-    pub fn get_texture_render_graphics_pipeline(&self) -> Arc<GraphicsPipeline> {
-        Arc::clone(&self.texture_render_graphics_pipeline)
+            shader_modules: HashMap::new(),
+            graphics_pipelines: HashMap::new(),
+        })
     }
 
     pub fn set_parent_directory(&self, path: &str) {
@@ -172,6 +150,23 @@ impl Manager {
         }?;
 
         Ok(shader_module)
+    }
+
+    pub fn load_graphics_pipeline<T, F>(&self, name: T, creater: F) -> anyhow::Result<Arc<GraphicsPipeline>>
+        where T: ToString,
+              F: FnOnce(Arc<Device>, &Manager) -> anyhow::Result<Arc<GraphicsPipeline>>,
+    {
+        let name = name.to_string();
+
+        if let Some(graphics_pipeline) = self.graphics_pipelines.get(&name) {
+            Ok(Arc::clone(graphics_pipeline))
+        }
+        else {
+            let device = self.graphics.device().expect("no available device");
+            let graphics_pipeline = creater(device, self)?;
+            self.graphics_pipelines.insert(name, Arc::clone(&graphics_pipeline));
+            Ok(graphics_pipeline)
+        }
     }
 
     fn parse_png(data: &[u8]) -> anyhow::Result<(ImageDimensions, Vec<u8>)> {
