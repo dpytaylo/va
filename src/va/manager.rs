@@ -25,7 +25,7 @@ use vulkano::render_pass::{Subpass, RenderPass};
 use vulkano::shader::{ShaderCreationError, ShaderModule};
 
 use crate::graphics::buffer::buffer2d::{Buffer2d, Buffer2dRead, save_buffer};
-use crate::graphics::font::{Font, self};
+use crate::graphics::font::{self, Font};
 use crate::graphics::glyph_render::GlyphRenderBuilder;
 use crate::graphics::image::save_image;
 use crate::graphics::rasterizate::SimpleRasterizate;
@@ -56,6 +56,13 @@ pub enum ShaderLoadError {
     #[error("failed to create shader module")]
     FailedToCreateShaderModule(#[from] ShaderCreationError),
 }
+
+#[derive(Debug, Display)]
+pub enum CommonGraphicsPipeline {
+    Texture2d,
+}
+
+static common_graphics_pipelines: HashMap<String, String> = HashMap::new();
 
 pub enum FontSize {
     Px(u32),

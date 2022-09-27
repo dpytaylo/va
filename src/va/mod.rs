@@ -1,5 +1,6 @@
 pub mod graphics;
 pub mod utils;
+pub mod widgets;
 
 pub mod global;
 pub mod layer;

@@ -1,13 +1,15 @@
-use std::{rc::Rc, cell::Ref, sync::Arc};
+use std::rc::Rc;
+use std::cell::Ref;
+use std::sync::Arc;
 
 use anyhow::Context;
 use bytemuck::{Zeroable, Pod};
 use ttf_parser::gpos::VariationDevice;
-use vulkano::{buffer::CpuAccessibleBuffer, render_pass::{Framebuffer, Subpass, RenderPass}, pipeline::{graphics::{viewport::{Viewport, ViewportState}, color_blend::ColorBlendState, input_assembly::InputAssemblyState, vertex_input::BuffersDefinition}, GraphicsPipeline, Pipeline}, command_buffer::{PrimaryAutoCommandBuffer, RenderPassBeginInfo, SubpassContents, CommandBufferUsage, AutoCommandBufferBuilder}, descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet}, image::{ImmutableImage, ImageViewAbstract, view::ImageView}, shader::ShaderModule, sampler::{Sampler, SamplerCreateInfo}, device::Device, format::ClearValue};
+use vulkano::buffer::CpuAccessibleBuffer; 
+use vulkano::render_pass::{Framebuffer, Subpass, RenderPass};
 
-use crate::{utils::math::vector::vector2::Vec2, manager::Manager};
-
-use super::{render_state::RenderState, font::Font, Graphics, window_render::WindowRender};
+use crate::utils::math::vector::vector2::Vec2;
+use crate::manager::Manager;
 
 struct LabelRenderState {
     graphics_pipeline: Arc<GraphicsPipeline>,
