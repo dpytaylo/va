@@ -4,10 +4,23 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytemuck::{Zeroable, Pod};
-use ttf_parser::gpos::VariationDevice;
 use vulkano::buffer::CpuAccessibleBuffer; 
+use vulkano::command_buffer::{PrimaryAutoCommandBuffer, RenderPassBeginInfo, AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents};
+use vulkano::descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet};
+use vulkano::device::Device;
+use vulkano::format::ClearValue;
+use vulkano::image::ImmutableImage;
+use vulkano::image::view::ImageView;
+use vulkano::pipeline::graphics::vertex_input::BuffersDefinition;
+use vulkano::pipeline::{GraphicsPipeline, PipelineBindPoint};
+use vulkano::pipeline::graphics::color_blend::ColorBlendState;
+use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
+use vulkano::pipeline::graphics::viewport::{ViewportState, Viewport};
 use vulkano::render_pass::{Framebuffer, Subpass, RenderPass};
+use vulkano::sampler::{SamplerCreateInfo, Sampler};
 
+use crate::graphics::Graphics;
+use crate::graphics::render_state::RenderState;
 use crate::utils::math::vector::vector2::Vec2;
 use crate::manager::Manager;
 
@@ -28,13 +41,11 @@ impl LabelRenderState {
     fn new(manager: &Rc<Manager>, device: Arc<Device>, render_pass: Arc<RenderPass>, image_view: Arc<ImageView<ImmutableImage>>) 
         -> anyhow::Result<Rc<Self>>
     {
-        let graphics_pipeline = manager.load_graphics_pipeline("font_render_state", 
+        let graphics_pipeline = manager.load_graphics_pipeline::<LabelRenderState, _>( 
             |device, manager| 
         {
-            let vs = manager
-                .load_shader("shaders/spv/texture2d/vert.spv")?;
-            let fs = manager
-                .load_shader("shaders/spv/texture2d/frag.spv")?;
+            let vs = manager.load_shader("shaders/spv/texture2d/vert.spv")?;
+            let fs = manager.load_shader("shaders/spv/texture2d/frag.spv")?;
             
             let subpass = Subpass::from(render_pass, 0).unwrap();
             let graphics_pipeline = GraphicsPipeline::start()
@@ -63,6 +74,7 @@ impl LabelRenderState {
             Ok(graphics_pipeline)
         })?;
             
+        // TODO
         let layout = Arc::clone(
             graphics_pipeline
                 .layout()

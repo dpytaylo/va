@@ -13,8 +13,6 @@ use crate::graphics::layer_render_data_handle::LayerRenderDataHandle;
 use crate::graphics::render_data::RenderData;
 use crate::graphics::Graphics;
 
-use super::object::RendableObject;
-
 pub struct Layer {
     graphics: Rc<Graphics>,
     objects: RefCell<Vec<Rc<dyn RendableObject>>>,

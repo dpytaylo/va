@@ -5,6 +5,7 @@ pub mod widgets;
 pub mod global;
 pub mod layer;
 pub mod manager;
+pub mod object_data;
 pub mod object;
 pub mod time;
 pub mod window;
@@ -32,7 +33,7 @@ pub trait MainLoop {
 pub struct Application();
 
 impl Application {
-    pub fn run<T>(va: Rc<Va>, mut main_loop: T)
+    pub fn run<T>(va: Va, mut main_loop: T)
     where
         T: MainLoop + 'static,
     {

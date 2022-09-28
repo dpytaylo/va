@@ -1,3 +1,4 @@
+use std::any::TypeId;
 // abcdefghijklmnopqrstuvwxyz
 use std::cell::{RefCell, Ref};
 use std::collections::HashMap;
@@ -45,7 +46,7 @@ pub struct Manager {
     parent_directory: RefCell<String>,
 
     shader_modules: HashMap<String, Arc<ShaderModule>>,
-    graphics_pipelines: HashMap<String, Arc<GraphicsPipeline>>,
+    graphics_pipelines: HashMap<TypeId, Arc<GraphicsPipeline>>,
 }
 
 #[derive(Debug, Error)]
@@ -57,7 +58,7 @@ pub enum ShaderLoadError {
     FailedToCreateShaderModule(#[from] ShaderCreationError),
 }
 
-#[derive(Debug, Display)]
+#[derive(Debug)]
 pub enum CommonGraphicsPipeline {
     Texture2d,
 }
@@ -152,19 +153,16 @@ impl Manager {
         Ok(shader_module)
     }
 
-    pub fn load_graphics_pipeline<T, F>(&self, name: T, creater: F) -> anyhow::Result<Arc<GraphicsPipeline>>
-        where T: ToString,
-              F: FnOnce(Arc<Device>, &Manager) -> anyhow::Result<Arc<GraphicsPipeline>>,
+    pub fn load_graphics_pipeline<T, F>(&self, creater: F) -> anyhow::Result<Arc<GraphicsPipeline>>
+        where F: FnOnce(Arc<Device>, &Manager) -> anyhow::Result<Arc<GraphicsPipeline>>,
     {
-        let name = name.to_string();
-
-        if let Some(graphics_pipeline) = self.graphics_pipelines.get(&name) {
+        if let Some(graphics_pipeline) = self.graphics_pipelines.get(&TypeId::of::<T>()) {
             Ok(Arc::clone(graphics_pipeline))
         }
         else {
             let device = self.graphics.device().expect("no available device");
             let graphics_pipeline = creater(device, self)?;
-            self.graphics_pipelines.insert(name, Arc::clone(&graphics_pipeline));
+            self.graphics_pipelines.insert(TypeId::of::<T>(), Arc::clone(&graphics_pipeline));
             Ok(graphics_pipeline)
         }
     }
