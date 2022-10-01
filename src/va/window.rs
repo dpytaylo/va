@@ -35,7 +35,7 @@ impl<'a> WindowBuilder<'a> {
         self
     }
 
-    pub fn build(self, va: &Rc<Va>) -> Result<Rc<Window>, WindowCreationError> {
+    pub fn build(self, va: &Va) -> Result<Rc<Window>, WindowCreationError> {
         Window::new(va, self.width, self.height, self.title)
     }
 }
@@ -73,7 +73,7 @@ pub struct Window {
 
 impl Window {
     fn new(
-        va: &Rc<Va>,
+        va: &Va,
         width: usize,
         height: usize,
         title: &str,

@@ -1,3 +1,4 @@
+use std::any::TypeId;
 // abcdefghijklmnopqrstuvwxyz
 use std::cell::{RefCell, Ref};
 use std::collections::HashMap;
@@ -45,7 +46,7 @@ pub struct Manager {
     parent_directory: RefCell<String>,
 
     shader_modules: HashMap<String, Arc<ShaderModule>>,
-    graphics_pipelines: HashMap<String, Arc<GraphicsPipeline>>,
+    graphics_pipelines: RefCell<HashMap<TypeId, Arc<GraphicsPipeline>>>,
 }
 
 #[derive(Debug, Error)]
@@ -56,13 +57,6 @@ pub enum ShaderLoadError {
     #[error("failed to create shader module")]
     FailedToCreateShaderModule(#[from] ShaderCreationError),
 }
-
-#[derive(Debug, Display)]
-pub enum CommonGraphicsPipeline {
-    Texture2d,
-}
-
-static common_graphics_pipelines: HashMap<String, String> = HashMap::new();
 
 pub enum FontSize {
     Px(u32),
@@ -78,7 +72,7 @@ impl Manager {
             parent_directory: RefCell::default(),
 
             shader_modules: HashMap::new(),
-            graphics_pipelines: HashMap::new(),
+            graphics_pipelines: RefCell::default(),
         })
     }
 
@@ -152,19 +146,17 @@ impl Manager {
         Ok(shader_module)
     }
 
-    pub fn load_graphics_pipeline<T, F>(&self, name: T, creater: F) -> anyhow::Result<Arc<GraphicsPipeline>>
-        where T: ToString,
+    pub fn load_graphics_pipeline<T, F>(&self, creater: F) -> anyhow::Result<Arc<GraphicsPipeline>>
+        where T: 'static,
               F: FnOnce(Arc<Device>, &Manager) -> anyhow::Result<Arc<GraphicsPipeline>>,
     {
-        let name = name.to_string();
-
-        if let Some(graphics_pipeline) = self.graphics_pipelines.get(&name) {
+        if let Some(graphics_pipeline) = self.graphics_pipelines.borrow().get(&TypeId::of::<T>()) {
             Ok(Arc::clone(graphics_pipeline))
         }
         else {
             let device = self.graphics.device().expect("no available device");
             let graphics_pipeline = creater(device, self)?;
-            self.graphics_pipelines.insert(name, Arc::clone(&graphics_pipeline));
+            self.graphics_pipelines.borrow_mut().insert(TypeId::of::<T>(), Arc::clone(&graphics_pipeline));
             Ok(graphics_pipeline)
         }
     }

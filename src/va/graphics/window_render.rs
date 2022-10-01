@@ -116,7 +116,7 @@ impl WindowRender {
 
     pub fn draw(
         &self,
-        va: &Rc<Va>,
+        va: &Va,
         window_graphics: &WindowGraphics,
         layers: Ref<Vec<Rc<Layer>>>,
     ) -> anyhow::Result<()> 
