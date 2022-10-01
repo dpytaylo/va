@@ -12,10 +12,11 @@ use crate::graphics::layer_render_data::{LayerRenderData, AbstractLayerRenderDat
 use crate::graphics::layer_render_data_handle::LayerRenderDataHandle;
 use crate::graphics::render_data::RenderData;
 use crate::graphics::Graphics;
+use crate::object::Object;
 
 pub struct Layer {
     graphics: Rc<Graphics>,
-    objects: RefCell<Vec<Rc<dyn RendableObject>>>,
+    objects: RefCell<Vec<Rc<dyn Object>>>,
     render_data: RefCell<Vec<Option<Box<dyn AbstractLayerRenderData>>>>,
 }
 
@@ -28,7 +29,7 @@ pub enum LayerError {
 impl Layer {
     pub fn new(
         graphics: Rc<Graphics>,
-        objects: Vec<Rc<dyn RendableObject>>,
+        objects: Vec<Rc<dyn Object>>,
         mut render_data: Vec<Option<Box<dyn AbstractLayerRenderData>>>,
     ) -> Rc<Self> 
     {
@@ -170,7 +171,7 @@ impl Layer {
         &self.graphics
     }
 
-    pub fn objects(&self) -> Ref<Vec<Rc<dyn RendableObject>>> {
+    pub fn objects(&self) -> Ref<Vec<Rc<dyn Object>>> {
         self.objects.borrow()
     }
 

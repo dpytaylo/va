@@ -6,8 +6,6 @@ pub struct Label {
 
 }
 
-impl Object {
-    fn process_layer(layer: &Layer) {
-        
-    }
+impl Object for Label {
+    
 }

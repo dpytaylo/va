@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use bytemuck::{Zeroable, Pod};
-use vulkano::buffer::CpuAccessibleBuffer; 
+use vulkano::buffer::{CpuAccessibleBuffer, TypedBufferAccess}; 
 use vulkano::command_buffer::{PrimaryAutoCommandBuffer, RenderPassBeginInfo, AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents};
 use vulkano::descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet};
 use vulkano::device::Device;
@@ -12,7 +12,7 @@ use vulkano::format::ClearValue;
 use vulkano::image::ImmutableImage;
 use vulkano::image::view::ImageView;
 use vulkano::pipeline::graphics::vertex_input::BuffersDefinition;
-use vulkano::pipeline::{GraphicsPipeline, PipelineBindPoint};
+use vulkano::pipeline::{GraphicsPipeline, PipelineBindPoint, Pipeline};
 use vulkano::pipeline::graphics::color_blend::ColorBlendState;
 use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
 use vulkano::pipeline::graphics::viewport::{ViewportState, Viewport};
