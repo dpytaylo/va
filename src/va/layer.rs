@@ -12,6 +12,7 @@ use crate::graphics::layer_render_data::{LayerRenderData, AbstractLayerRenderDat
 use crate::graphics::layer_render_data_handle::LayerRenderDataHandle;
 use crate::graphics::render_data::RenderData;
 use crate::graphics::Graphics;
+use crate::graphics::render_state::RenderState;
 use crate::object::Object;
 
 pub struct Layer {
@@ -61,9 +62,10 @@ impl Layer {
         })
     }
 
-    pub fn add_render_data<T>(&self, render_data: RenderData<T>) -> Result<LayerRenderDataHandle<T>, DeviceMemoryAllocationError>
+    pub fn add_render_data<T, U>(&self, render_data: RenderData<T, U>) -> Result<LayerRenderDataHandle<T>, DeviceMemoryAllocationError>
         where T: Clone + 'static,
               [T]: BufferContents,
+              U: RenderState<T>,
     {
         let (layer_render_data, handle) = LayerRenderData::new(
             Rc::clone(&self.graphics),
@@ -88,7 +90,7 @@ impl Layer {
         }
 
         let layer_render_data = unsafe {
-            let (val, _) = mem::transmute::<_, (*mut LayerRenderData<T>, usize)>(Box::into_raw(layer_render_data));
+            let (val, _) = mem::transmute::<_, (*mut LayerRenderData<T, U>, usize)>(Box::into_raw(layer_render_data));
             Box::from_raw(val)
         };
 

@@ -28,9 +28,10 @@ pub trait AbstractLayerRenderData {
     ) -> anyhow::Result<PrimaryAutoCommandBuffer>;
 }
 
-pub struct LayerRenderData<T> 
+pub struct LayerRenderData<T, U> 
     where T: Clone + 'static,
           [T]: BufferContents,
+          U: RenderState<T>,
 {
     graphics: Rc<Graphics>,
 
@@ -38,7 +39,7 @@ pub struct LayerRenderData<T>
     meshes: RefCell<Vec<Rc<Mesh<T>>>>,
 
     vertex_buffer: RefCell<Arc<CpuAccessibleBuffer<[T]>>>,
-    render_state: Rc<dyn RenderState<T>>,
+    render_state: Rc<U>,
 }
 
 #[derive(Error, Debug)]
@@ -47,14 +48,15 @@ pub enum LayerRenderDataError {
     FailedToRemoveMesh,
 }
 
-impl<T> LayerRenderData<T> 
+impl<T, U> LayerRenderData<T, U> 
     where T: Clone + 'static,
           [T]: BufferContents,
+          U: RenderState<T>,
 {
     pub fn new(
         graphics: Rc<Graphics>,
         layer_render_data_index: usize,
-        render_data: RenderData<T>,
+        render_data: RenderData<T, U>,
     ) -> Result<(Self, LayerRenderDataHandle<T>), DeviceMemoryAllocationError> 
     {
         let vertex_buffer = CpuAccessibleBuffer::from_iter(
@@ -110,9 +112,10 @@ impl<T> LayerRenderData<T>
     }
 }
 
-impl<T> AbstractLayerRenderData for LayerRenderData<T> 
+impl<T, U> AbstractLayerRenderData for LayerRenderData<T, U> 
     where T: Clone,
           [T]: BufferContents,
+          U: RenderState<T>,
 {
     fn type_id(&self) -> TypeId {
         TypeId::of::<T>()

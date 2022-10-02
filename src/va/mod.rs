@@ -41,27 +41,30 @@ impl MainLoop for DefaultMainLoop {
 }
 
 #[derive(Default)]
-pub struct Application<T = (), U = DefaultMainLoop> 
+pub struct Application<T = ()> 
     where T: FnOnce(&Va),
-          U: MainLoop + 'static,
 {
     initialize_closure: Option<T>,
-    main_loop: U,
+    main_loop: Option<Box<dyn MainLoop>>,
 }
 
-impl<T, U> Application<T, U> 
+impl<T> Application<T> 
     where T: FnOnce(&Va),
-          U: MainLoop + 'static,
 {
-    pub fn new(main_loop: U) -> Self {
+    pub fn new() -> Self {
         Self {
             initialize_closure: None,
-            main_loop,
+            main_loop: None,
         }
     }
 
     pub fn with_initialize(mut self, closure: T) -> Self {
         self.initialize_closure = Some(closure);
+        self
+    }
+
+    pub fn with_main_loop(mut self, main_loop: Box<dyn MainLoop>) -> Self {
+        self.main_loop = Some(main_loop);
         self
     }
 
@@ -85,6 +88,11 @@ impl<T, U> Application<T, U>
         if let Some(initialize_closure) = initialize_closure {
             initialize_closure(&va);
         }
+
+        let mut main_loop: Box<dyn MainLoop> = match main_loop {
+            Some(val) => val,
+            None => Box::new(DefaultMainLoop),
+        };
 
         event_loop.run(move |event, event_loop_window_target, control_flow| {
             *control_flow = ControlFlow::Wait;

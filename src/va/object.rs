@@ -1,19 +1,30 @@
 use std::rc::Rc;
 
-use crate::{graphics::render_data::RenderData, layer::Layer};
+use crate::layer::Layer;
+use crate::global::Va;
 
 pub trait Object {
-    // fn add_child<T>(&self, object: T)
-    //     where T: Object
-    // {
-    //     unimplemented!();
-    // }
+    fn create(&self, va: &Va) -> anyhow::Result<()> {
+        Ok(())
+    }
 
-    // fn children(&self) -> Vec<Rc<dyn Object>> {
-    //     unimplemented!();
-    // }
+    fn add_in_layer(&self, va: &Va, layer: &Rc<Layer>) -> anyhow::Result<()> {
+        Ok(())
+    }
 
-    fn update(&self) {
+    fn remove_from_layer(&self, va: &Va, layer: &Rc<Layer>) -> anyhow::Result<()> {
+        Ok(())
+    }
 
+    fn update(&self, va: &Va, layer: &Rc<Layer>) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn add_child(&self, object: Rc<dyn Object>) {
+        unimplemented!();
+    }
+
+    fn children(&self) -> Vec<Rc<dyn Object>> {
+        unimplemented!();
     }
 }
