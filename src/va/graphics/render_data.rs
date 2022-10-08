@@ -5,9 +5,10 @@ use vulkano::buffer::BufferContents;
 use super::mesh::Mesh;
 use super::render_state::RenderState;
 
+#[derive(Clone)]
 pub struct RenderData<T, U> 
     where [T]: BufferContents,
-          U: RenderState<T>,
+          U: RenderState<T> + Clone,
 {
     pub mesh: Rc<Mesh<T>>,
     pub render_state: Rc<U>,
@@ -15,7 +16,7 @@ pub struct RenderData<T, U>
 
 impl<T, U> RenderData<T, U> 
     where [T]: BufferContents,
-          U: RenderState<T>,
+          U: RenderState<T> + Clone,
 {
     pub fn new(mesh: Rc<Mesh<T>>, render_state: Rc<U>) -> Self {
         Self {

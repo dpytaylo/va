@@ -24,7 +24,8 @@ use crate::graphics::render_state::RenderState;
 use crate::utils::math::vector::vector2::Vec2;
 use crate::manager::Manager;
 
-struct LabelRenderState {
+#[derive(Clone)]
+pub struct LabelRenderState {
     graphics_pipeline: Arc<GraphicsPipeline>,
     descriptor_set: Arc<PersistentDescriptorSet>,
 }
@@ -38,7 +39,7 @@ pub struct LabelRenderStateVertex {
 vulkano::impl_vertex!(LabelRenderStateVertex, position, tex_coords);
 
 impl LabelRenderState {
-    fn new(manager: &Rc<Manager>, device: Arc<Device>, render_pass: Arc<RenderPass>, image_view: Arc<ImageView<ImmutableImage>>) 
+    pub fn new(manager: &Rc<Manager>, device: Arc<Device>, render_pass: Arc<RenderPass>, image_view: Arc<ImageView<ImmutableImage>>) 
         -> anyhow::Result<Rc<Self>>
     {
         let graphics_pipeline = manager.load_graphics_pipeline::<LabelRenderState, _>( 

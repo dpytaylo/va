@@ -2,9 +2,11 @@ use std::any::TypeId;
 use std::cell::{Ref, RefCell};
 use std::mem;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use thiserror::Error;
 use vulkano::buffer::BufferContents;
+use vulkano::device::Device;
 use vulkano::memory::DeviceMemoryAllocationError;
 
 use crate::graphics::mesh::Mesh;
@@ -16,7 +18,7 @@ use crate::graphics::render_state::RenderState;
 use crate::object::Object;
 
 pub struct Layer {
-    graphics: Rc<Graphics>,
+    device: Arc<Device>,
     objects: RefCell<Vec<Rc<dyn Object>>>,
     render_data: RefCell<Vec<Option<Box<dyn AbstractLayerRenderData>>>>,
 }
@@ -29,7 +31,7 @@ pub enum LayerError {
 
 impl Layer {
     pub fn new(
-        graphics: Rc<Graphics>,
+        device: Arc<Device>,
         objects: Vec<Rc<dyn Object>>,
         mut render_data: Vec<Option<Box<dyn AbstractLayerRenderData>>>,
     ) -> Rc<Self> 
@@ -56,19 +58,19 @@ impl Layer {
         }
 
         Rc::new(Self {
-            graphics,
+            device,
             objects: RefCell::new(objects),
             render_data: RefCell::new(render_data),
         })
     }
 
-    pub fn add_render_data<T, U>(&self, render_data: RenderData<T, U>) -> Result<LayerRenderDataHandle<T>, DeviceMemoryAllocationError>
+    pub fn add_render_data<T, U>(&self, render_data: RenderData<T, U>) -> Result<LayerRenderDataHandle<T, U>, DeviceMemoryAllocationError>
         where T: Clone + 'static,
               [T]: BufferContents,
-              U: RenderState<T>,
+              U: RenderState<T> + Clone + 'static,
     {
         let (layer_render_data, handle) = LayerRenderData::new(
-            Rc::clone(&self.graphics),
+            Arc::clone(&self.device),
             self.render_data.borrow().len(),
             render_data,
         )?;
@@ -77,9 +79,10 @@ impl Layer {
         Ok(handle)
     }
 
-    pub fn remove_render_data<T>(&self, handle: LayerRenderDataHandle<T>) -> Rc<Mesh<T>> 
+    pub fn remove_render_data<T, U>(&self, handle: LayerRenderDataHandle<T, U>) -> Rc<Mesh<T>> 
         where T: Clone + 'static,
               [T]: BufferContents,
+              U: RenderState<T> + Clone,
     {
         let layer_render_data = self.render_data.borrow_mut()[handle.layer_render_data_index()]
             .take()
@@ -168,10 +171,6 @@ impl Layer {
     //     self.render_data.borrow_mut().swap_remove(index.unwrap());
     //     Ok(())
     // }
-
-    pub fn graphics(&self) -> &Rc<Graphics> {
-        &self.graphics
-    }
 
     pub fn objects(&self) -> Ref<Vec<Rc<dyn Object>>> {
         self.objects.borrow()

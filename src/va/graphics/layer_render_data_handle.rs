@@ -26,15 +26,19 @@ impl RawLayerRenderDataHandle {
     }
 }
 
-pub struct LayerRenderDataHandle<T> {
+pub struct LayerRenderDataHandle<T, U> {
     phantom: PhantomData<T>,
+    phantom2: PhantomData<U>,
+
     raw: Rc<RawLayerRenderDataHandle>,
 }
 
-impl<T> LayerRenderDataHandle<T> {
+impl<T, U> LayerRenderDataHandle<T, U> {
     pub fn new(raw_layer_render_data_handle: Rc<RawLayerRenderDataHandle>) -> Self {
         Self {
             phantom: PhantomData,
+            phantom2: PhantomData,
+
             raw: raw_layer_render_data_handle,
         }
     }

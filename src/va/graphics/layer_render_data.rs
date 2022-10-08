@@ -7,9 +7,12 @@ use std::sync::Arc;
 use thiserror::Error;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, BufferContents};
 use vulkano::command_buffer::PrimaryAutoCommandBuffer;
+use vulkano::device::Device;
 use vulkano::memory::DeviceMemoryAllocationError;
 use vulkano::pipeline::graphics::viewport::Viewport;
 use vulkano::render_pass::Framebuffer;
+
+use crate::utils::iter::IteratorWithLen;
 
 use super::mesh::Mesh;
 use super::layer_render_data_handle::{LayerRenderDataHandle, RawLayerRenderDataHandle};
@@ -23,6 +26,7 @@ pub trait AbstractLayerRenderData {
     fn update_layer_render_data_index(&self, index: usize);
     fn command_buffer(
         &self,
+        graphics: &Rc<Graphics>,
         framebuffer: Arc<Framebuffer>,
         viewport: Viewport,
     ) -> anyhow::Result<PrimaryAutoCommandBuffer>;
@@ -33,7 +37,7 @@ pub struct LayerRenderData<T, U>
           [T]: BufferContents,
           U: RenderState<T>,
 {
-    graphics: Rc<Graphics>,
+    device: Arc<Device>,
 
     handles: RefCell<Vec<Rc<RawLayerRenderDataHandle>>>,
     meshes: RefCell<Vec<Rc<Mesh<T>>>>,
@@ -51,16 +55,16 @@ pub enum LayerRenderDataError {
 impl<T, U> LayerRenderData<T, U> 
     where T: Clone + 'static,
           [T]: BufferContents,
-          U: RenderState<T>,
+          U: RenderState<T> + Clone,
 {
     pub fn new(
-        graphics: Rc<Graphics>,
+        device: Arc<Device>,
         layer_render_data_index: usize,
         render_data: RenderData<T, U>,
-    ) -> Result<(Self, LayerRenderDataHandle<T>), DeviceMemoryAllocationError> 
+    ) -> Result<(Self, LayerRenderDataHandle<T, U>), DeviceMemoryAllocationError> 
     {
         let vertex_buffer = CpuAccessibleBuffer::from_iter(
-            graphics.device().expect("no available device"),
+            Arc::clone(&device),
             BufferUsage::all(),
             false,
             render_data.mesh.vertices().iter().map(|val| val.clone()),
@@ -70,7 +74,7 @@ impl<T, U> LayerRenderData<T, U>
 
         Ok((
             Self {
-                graphics,
+                device,
 
                 handles: RefCell::new(vec![Rc::clone(&raw_handle)]),
                 meshes: RefCell::new(vec![render_data.mesh]),
@@ -82,26 +86,12 @@ impl<T, U> LayerRenderData<T, U>
         ))
     }
 
-    pub fn update_vertex_buffer(&self) -> Result<(), DeviceMemoryAllocationError> {
-        let data: Vec<_> = self
-            .meshes
-            .borrow()
-            .iter()
-            .flat_map(|val| val.vertices().iter().cloned())
-            .collect();
-
-        *self.vertex_buffer.borrow_mut() = CpuAccessibleBuffer::from_iter(
-            self.graphics.device().expect("no available device"),
-            BufferUsage::all(),
-            false,
-            data,
-        )?;
-
-        Ok(())
-    }
-
     pub fn remove_mesh(&self, index: usize) -> Result<Rc<Mesh<T>>, LayerRenderDataError> {
-        if self.meshes.borrow().len() < 2 || self.meshes.borrow().len() == index + 1 {
+        if self.meshes.borrow().is_empty() {
+            return Err(LayerRenderDataError::FailedToRemoveMesh);
+        }
+
+        if self.meshes.borrow().len() - 1 == index {
             return Ok(self.meshes.borrow_mut().remove(index));
         }
 
@@ -109,6 +99,43 @@ impl<T, U> LayerRenderData<T, U>
         self.handles.borrow()[index].set_mesh_index(index);
 
         Ok(value)
+    }
+
+    pub fn update_vertex_buffer(&self) -> Result<(), DeviceMemoryAllocationError> {
+        let mut counter = 0;
+
+        let meshes = self.meshes.borrow();
+        for mesh in meshes.iter() {
+            counter += mesh.vertices().len();
+        }
+
+        let iter = meshes
+            .iter()
+            .flat_map(|val| {
+                val.vertices().iter().cloned()
+            });
+
+        // let iter = self
+        //     .meshes
+        //     .borrow()
+        //     .iter()
+        //     .flat_map(|val| val.vertices().iter().cloned());
+
+        // *self.vertex_buffer.borrow_mut() = CpuAccessibleBuffer::from_iter(
+        //     Arc::clone(&self.device),
+        //     BufferUsage::all(),
+        //     false,
+        //     data,
+        // )?;
+
+        *self.vertex_buffer.borrow_mut() = CpuAccessibleBuffer::from_iter(
+            Arc::clone(&self.device),
+            BufferUsage::all(),
+            false,
+            IteratorWithLen::new(iter, counter),
+        )?;
+
+        Ok(())
     }
 }
 
@@ -137,12 +164,13 @@ impl<T, U> AbstractLayerRenderData for LayerRenderData<T, U>
 
     fn command_buffer(
         &self,
+        graphics: &Rc<Graphics>,
         framebuffer: Arc<Framebuffer>,
         viewport: Viewport,
     ) -> anyhow::Result<PrimaryAutoCommandBuffer> 
     {
         self.render_state.command_buffer(
-            &self.graphics,
+            graphics,
             self.vertex_buffer.borrow(),
             framebuffer,
             viewport,

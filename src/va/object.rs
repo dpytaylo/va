@@ -1,9 +1,20 @@
+use std::any::TypeId;
 use std::rc::Rc;
 
 use crate::layer::Layer;
 use crate::global::Va;
 
 pub trait Object {
+    fn type_id(&self) -> TypeId;
+
+    fn add_child(&self, object: Rc<dyn Object>) {
+        unimplemented!();
+    }
+
+    fn children(&self) -> Vec<Rc<dyn Object>> {
+        unimplemented!();
+    }
+
     fn create(&self, va: &Va) -> anyhow::Result<()> {
         Ok(())
     }
@@ -18,13 +29,5 @@ pub trait Object {
 
     fn update(&self, va: &Va, layer: &Rc<Layer>) -> anyhow::Result<()> {
         Ok(())
-    }
-
-    fn add_child(&self, object: Rc<dyn Object>) {
-        unimplemented!();
-    }
-
-    fn children(&self) -> Vec<Rc<dyn Object>> {
-        unimplemented!();
     }
 }
