@@ -16,7 +16,7 @@ pub trait RenderState<T>
     fn command_buffer(
         &self,
         graphics: &Rc<Graphics>,
-        buffer: Ref<Arc<CpuAccessibleBuffer<[T]>>>,
+        buffer: &Arc<CpuAccessibleBuffer<[T]>>,
         framebuffer: Arc<Framebuffer>,
         viewport: Viewport,
     ) -> anyhow::Result<PrimaryAutoCommandBuffer>;

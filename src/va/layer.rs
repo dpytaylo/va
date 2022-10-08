@@ -13,7 +13,6 @@ use crate::graphics::mesh::Mesh;
 use crate::graphics::layer_render_data::{LayerRenderData, AbstractLayerRenderData};
 use crate::graphics::layer_render_data_handle::LayerRenderDataHandle;
 use crate::graphics::render_data::RenderData;
-use crate::graphics::Graphics;
 use crate::graphics::render_state::RenderState;
 use crate::object::Object;
 
@@ -51,7 +50,6 @@ impl Layer {
         for i in indices.into_iter().rev() {
             render_data.swap_remove(i);
         }
-
         
         for i in 0..render_data.len() {
             render_data[i].as_ref().unwrap().update_layer_render_data_index(i);
@@ -64,38 +62,53 @@ impl Layer {
         })
     }
 
-    pub fn add_render_data<T, U>(&self, render_data: RenderData<T, U>) -> Result<LayerRenderDataHandle<T, U>, DeviceMemoryAllocationError>
+    pub fn add_render_data<T, U>(&self, mesh: Rc<Mesh<T>>, render_state: Rc<U>) -> Result<LayerRenderDataHandle<T, U>, DeviceMemoryAllocationError>
         where T: Clone + 'static,
               [T]: BufferContents,
-              U: RenderState<T> + Clone + 'static,
+              U: RenderState<T> + 'static,
     {
-        let (layer_render_data, handle) = LayerRenderData::new(
+        let ref_render_data = self.render_data.borrow();
+        for i in 0..ref_render_data.len() {
+            if let Some(render_data) = &ref_render_data[i] {
+                if render_data.type_id() == (TypeId::of::<T>(), TypeId::of::<U>()) {
+                    drop(ref_render_data);
+
+                    let layer_render_data = self.render_data.borrow_mut()[i].take().unwrap();
+                    let layer_render_data = Self::transmute_layer_render_data::<T, U>(layer_render_data);
+                    
+                    return Ok(layer_render_data.add_mesh(mesh));
+                }
+            }
+        }
+
+        drop(ref_render_data);
+
+        let layer_render_data = LayerRenderData::new(
             Arc::clone(&self.device),
             self.render_data.borrow().len(),
-            render_data,
-        )?;
-
+            render_state,
+        );
+        
+        let handle = layer_render_data.add_mesh(mesh);
         self.render_data.borrow_mut().push(Some(Box::new(layer_render_data)));
+
         Ok(handle)
     }
 
     pub fn remove_render_data<T, U>(&self, handle: LayerRenderDataHandle<T, U>) -> Rc<Mesh<T>> 
         where T: Clone + 'static,
               [T]: BufferContents,
-              U: RenderState<T> + Clone,
+              U: RenderState<T> + 'static,
     {
         let layer_render_data = self.render_data.borrow_mut()[handle.layer_render_data_index()]
             .take()
             .expect("invalid layer render data index");
 
-        if (*layer_render_data).type_id() != TypeId::of::<T>() {
+        if (*layer_render_data).type_id() != (TypeId::of::<T>(), TypeId::of::<U>()) {
             panic!("invalid handle type");
         }
 
-        let layer_render_data = unsafe {
-            let (val, _) = mem::transmute::<_, (*mut LayerRenderData<T, U>, usize)>(Box::into_raw(layer_render_data));
-            Box::from_raw(val)
-        };
+        let layer_render_data = Self::transmute_layer_render_data::<T, U>(layer_render_data);
 
         let mesh = layer_render_data.remove_mesh(handle.layer_render_data_index()).expect("invalid index");
         
@@ -114,6 +127,27 @@ impl Layer {
         }
 
         mesh
+    }
+
+    fn transmute_layer_render_data<T, U>(layer_render_data: Box<dyn AbstractLayerRenderData>) -> Box<LayerRenderData<T, U>> 
+        where T: Clone + 'static,
+             [T]: BufferContents,
+             U: RenderState<T> + 'static,
+    {
+        unsafe {
+            let (val, _) = mem::transmute::<_, (*mut LayerRenderData<T, U>, usize)>(Box::into_raw(layer_render_data));
+            Box::from_raw(val)
+        }
+    }
+
+    pub fn update_layer_render_data(&self) -> Result<(), DeviceMemoryAllocationError> {
+        for layer_render_data in self.render_data.borrow().iter() {
+            if let Some(val) = layer_render_data {
+                val.update_vertex_buffer()?;
+            }
+        }
+
+        Ok(())
     }
 
     // pub fn create_render_object_(

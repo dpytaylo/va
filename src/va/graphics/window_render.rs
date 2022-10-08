@@ -152,6 +152,10 @@ impl WindowRender {
             return Ok(()); // TODO ???
         }
 
+        for layer in layers.iter() {
+            layer.update_layer_render_data();
+        }
+
         let layer = layers.iter().next().unwrap();
         let render_data = layer.render_data();
         let rdata = render_data.iter().next().unwrap().as_ref().unwrap();
@@ -161,6 +165,13 @@ impl WindowRender {
             Arc::clone(&self.framebuffers.borrow()[image_num]), 
             self.viewport.borrow().clone()
         )?;
+
+        let command_buffer = if let Some(val) = command_buffer {
+            val
+        }
+        else {
+            return Ok(());
+        };
 
         let future = previous_frame_end
             .join(acquire_future)

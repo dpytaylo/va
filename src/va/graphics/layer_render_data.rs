@@ -1,6 +1,6 @@
 // abcdefghijklmnopqrstuvwxyz
 use std::any::TypeId;
-use std::cell::RefCell;
+use std::cell::{RefCell, Cell};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -16,20 +16,20 @@ use crate::utils::iter::IteratorWithLen;
 
 use super::mesh::Mesh;
 use super::layer_render_data_handle::{LayerRenderDataHandle, RawLayerRenderDataHandle};
-use super::render_data::RenderData;
 use super::render_state::RenderState;
 use super::Graphics;
 
 pub trait AbstractLayerRenderData {
-    fn type_id(&self) -> TypeId;
+    fn type_id(&self) -> (TypeId, TypeId);
     fn has_owners(&self) -> bool;
     fn update_layer_render_data_index(&self, index: usize);
+    fn update_vertex_buffer(&self) -> Result<(), DeviceMemoryAllocationError>;
     fn command_buffer(
         &self,
         graphics: &Rc<Graphics>,
         framebuffer: Arc<Framebuffer>,
         viewport: Viewport,
-    ) -> anyhow::Result<PrimaryAutoCommandBuffer>;
+    ) -> anyhow::Result<Option<PrimaryAutoCommandBuffer>>;
 }
 
 pub struct LayerRenderData<T, U> 
@@ -39,10 +39,14 @@ pub struct LayerRenderData<T, U>
 {
     device: Arc<Device>,
 
-    handles: RefCell<Vec<Rc<RawLayerRenderDataHandle>>>,
-    meshes: RefCell<Vec<Rc<Mesh<T>>>>,
+    layer_render_data_index: Cell<usize>,
 
-    vertex_buffer: RefCell<Arc<CpuAccessibleBuffer<[T]>>>,
+    meshes: RefCell<Vec<Rc<Mesh<T>>>>,
+    handles: RefCell<Vec<Rc<RawLayerRenderDataHandle>>>,
+
+    was_edited: Cell<bool>,
+
+    vertex_buffer: RefCell<Option<Arc<CpuAccessibleBuffer<[T]>>>>,
     render_state: Rc<U>,
 }
 
@@ -55,35 +59,50 @@ pub enum LayerRenderDataError {
 impl<T, U> LayerRenderData<T, U> 
     where T: Clone + 'static,
           [T]: BufferContents,
-          U: RenderState<T> + Clone,
+          U: RenderState<T>,
 {
     pub fn new(
         device: Arc<Device>,
         layer_render_data_index: usize,
-        render_data: RenderData<T, U>,
-    ) -> Result<(Self, LayerRenderDataHandle<T, U>), DeviceMemoryAllocationError> 
+        render_state: Rc<U>,
+    ) -> Self
     {
-        let vertex_buffer = CpuAccessibleBuffer::from_iter(
-            Arc::clone(&device),
-            BufferUsage::all(),
-            false,
-            render_data.mesh.vertices().iter().map(|val| val.clone()),
-        )?;
+        // let vertex_buffer = CpuAccessibleBuffer::from_iter(
+        //     Arc::clone(&device),
+        //     BufferUsage::all(),
+        //     false,
+        //     mesh.vertices().iter().map(|val| val.clone()),
+        // )?;
 
-        let raw_handle = RawLayerRenderDataHandle::new(layer_render_data_index, 0);
+        // let raw_handle = RawLayerRenderDataHandle::new(layer_render_data_index, 0);
 
-        Ok((
-            Self {
-                device,
+        Self {
+            device,
 
-                handles: RefCell::new(vec![Rc::clone(&raw_handle)]),
-                meshes: RefCell::new(vec![render_data.mesh]),
+            layer_render_data_index: Cell::new(layer_render_data_index),
 
-                vertex_buffer: RefCell::new(vertex_buffer),
-                render_state: render_data.render_state,
-            }, 
-            LayerRenderDataHandle::new(raw_handle)
-        ))
+            meshes: Default::default(),
+            handles: Default::default(),
+
+            was_edited: Default::default(),
+
+            vertex_buffer: Default::default(),
+            render_state,
+        }
+    }
+
+    pub fn add_mesh(&self, mesh: Rc<Mesh<T>>) -> LayerRenderDataHandle<T, U> {
+        self.meshes.borrow_mut().push(mesh);
+
+        let raw_handle = RawLayerRenderDataHandle::new(
+            self.layer_render_data_index.get(), 
+            self.meshes.borrow().len(),
+        );
+
+        self.handles.borrow_mut().push(Rc::clone(&raw_handle));
+
+        self.was_edited.set(true);
+        LayerRenderDataHandle::new(raw_handle)
     }
 
     pub fn remove_mesh(&self, index: usize) -> Result<Rc<Mesh<T>>, LayerRenderDataError> {
@@ -98,10 +117,38 @@ impl<T, U> LayerRenderData<T, U>
         let value = self.meshes.borrow_mut().swap_remove(index);
         self.handles.borrow()[index].set_mesh_index(index);
 
+        self.was_edited.set(true);
         Ok(value)
     }
+}
 
-    pub fn update_vertex_buffer(&self) -> Result<(), DeviceMemoryAllocationError> {
+impl<T, U> AbstractLayerRenderData for LayerRenderData<T, U> 
+    where T: Clone,
+          [T]: BufferContents,
+          U: RenderState<T> + 'static,
+{
+    fn type_id(&self) -> (TypeId, TypeId) {
+        (TypeId::of::<T>(), TypeId::of::<U>())
+    }
+
+    fn has_owners(&self) -> bool {
+        self.handles.borrow().len() > 0
+    }
+
+    fn update_layer_render_data_index(&self, index: usize) {
+        self.layer_render_data_index.set(index);
+
+        for handle in self.handles.borrow().iter() {
+            handle.set_layer_render_data_index(index);
+        }
+    }
+
+    fn update_vertex_buffer(&self) -> Result<(), DeviceMemoryAllocationError> {
+        if !self.was_edited.get() {
+            return Ok(());
+        }
+        self.was_edited.set(false);
+
         let mut counter = 0;
 
         let meshes = self.meshes.borrow();
@@ -128,38 +175,14 @@ impl<T, U> LayerRenderData<T, U>
         //     data,
         // )?;
 
-        *self.vertex_buffer.borrow_mut() = CpuAccessibleBuffer::from_iter(
+        *self.vertex_buffer.borrow_mut() = Some(CpuAccessibleBuffer::from_iter(
             Arc::clone(&self.device),
             BufferUsage::all(),
             false,
             IteratorWithLen::new(iter, counter),
-        )?;
+        )?);
 
         Ok(())
-    }
-}
-
-impl<T, U> AbstractLayerRenderData for LayerRenderData<T, U> 
-    where T: Clone,
-          [T]: BufferContents,
-          U: RenderState<T>,
-{
-    fn type_id(&self) -> TypeId {
-        TypeId::of::<T>()
-    }
-
-    fn has_owners(&self) -> bool {
-        if self.handles.borrow().len() > 0 {
-            return true;
-        }
-
-        false
-    }
-
-    fn update_layer_render_data_index(&self, index: usize) {
-        for handle in self.handles.borrow().iter() {
-            handle.set_layer_render_data_index(index);
-        }
     }
 
     fn command_buffer(
@@ -167,13 +190,17 @@ impl<T, U> AbstractLayerRenderData for LayerRenderData<T, U>
         graphics: &Rc<Graphics>,
         framebuffer: Arc<Framebuffer>,
         viewport: Viewport,
-    ) -> anyhow::Result<PrimaryAutoCommandBuffer> 
+    ) -> anyhow::Result<Option<PrimaryAutoCommandBuffer>>
     {
-        self.render_state.command_buffer(
+        if self.vertex_buffer.borrow().is_none() {
+            return Ok(None);
+        }
+
+        Ok(Some(self.render_state.command_buffer(
             graphics,
-            self.vertex_buffer.borrow(),
+            self.vertex_buffer.borrow().as_ref().unwrap(),
             framebuffer,
             viewport,
-        )
+        )?))
     }
 }

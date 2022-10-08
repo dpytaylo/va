@@ -24,7 +24,6 @@ use crate::graphics::render_state::RenderState;
 use crate::utils::math::vector::vector2::Vec2;
 use crate::manager::Manager;
 
-#[derive(Clone)]
 pub struct LabelRenderState {
     graphics_pipeline: Arc<GraphicsPipeline>,
     descriptor_set: Arc<PersistentDescriptorSet>,
@@ -105,7 +104,7 @@ impl RenderState<Vec2<f32>> for LabelRenderState {
     fn command_buffer(
         &self,
         graphics: &Rc<Graphics>,
-        buffer: Ref<Arc<CpuAccessibleBuffer<[Vec2<f32>]>>>,
+        buffer: &Arc<CpuAccessibleBuffer<[Vec2<f32>]>>,
         framebuffer: Arc<Framebuffer>,
         viewport: Viewport,
     ) -> anyhow::Result<PrimaryAutoCommandBuffer> 
