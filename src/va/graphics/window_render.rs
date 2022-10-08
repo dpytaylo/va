@@ -16,6 +16,7 @@ use vulkano::sync::{self, FlushError, GpuFuture};
 use crate::global::Va;
 use crate::va::layer::Layer;
 
+use super::Graphics;
 use super::framerate_counter::FramerateCounter;
 use super::window_graphics::WindowGraphics;
 
@@ -116,7 +117,7 @@ impl WindowRender {
 
     pub fn draw(
         &self,
-        va: &Va,
+        graphics: &Rc<Graphics>,
         window_graphics: &WindowGraphics,
         layers: Ref<Vec<Rc<Layer>>>,
     ) -> anyhow::Result<()> 
@@ -130,8 +131,8 @@ impl WindowRender {
             self.recreate_swapchain(window_graphics)?;
         }
 
-        let device = va.graphics.device().expect("no available device");
-        let queue = va.graphics.queue().expect("no available queue");
+        let device = graphics.device().expect("no available device");
+        let queue = graphics.queue().expect("no available queue");
 
         let swapchain = window_graphics.swapchain();
 
@@ -151,15 +152,26 @@ impl WindowRender {
             return Ok(()); // TODO ???
         }
 
+        for layer in layers.iter() {
+            layer.update_layer_render_data();
+        }
+
         let layer = layers.iter().next().unwrap();
         let render_data = layer.render_data();
         let rdata = render_data.iter().next().unwrap().as_ref().unwrap();
 
-        let command_buffer =
-            rdata.command_buffer(
-                Arc::clone(&self.framebuffers.borrow()[image_num]), 
-                self.viewport.borrow().clone()
+        let command_buffer = rdata.command_buffer(
+            graphics,
+            Arc::clone(&self.framebuffers.borrow()[image_num]), 
+            self.viewport.borrow().clone()
         )?;
+
+        let command_buffer = if let Some(val) = command_buffer {
+            val
+        }
+        else {
+            return Ok(());
+        };
 
         let future = previous_frame_end
             .join(acquire_future)

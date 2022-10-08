@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+#[derive(Default)]
 pub struct Mesh<T> {
     vertices: Vec<T>,
 }

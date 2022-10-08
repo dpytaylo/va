@@ -10,7 +10,7 @@ impl Render {
     pub fn draw(va: &Va, window: &Rc<Window>) -> anyhow::Result<()> {
         window
             .render()
-            .draw(va, window.graphics(), window.layers())?;
+            .draw(&va.graphics, window.graphics(), window.layers())?;
 
         Ok(())
     }
