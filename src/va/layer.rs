@@ -62,26 +62,26 @@ impl Layer {
         })
     }
 
-    pub fn add_render_data<T, U>(&self, mesh: Rc<Mesh<T>>, render_state: Rc<U>) -> Result<LayerRenderDataHandle<T, U>, DeviceMemoryAllocationError>
+    pub fn add_render_data<T, U>(&self, mesh: Rc<Mesh<T>>, render_state: Rc<U>) -> LayerRenderDataHandle<T, U>
         where T: Clone + 'static,
               [T]: BufferContents,
               U: RenderState<T> + 'static,
     {
-        let ref_render_data = self.render_data.borrow();
-        for i in 0..ref_render_data.len() {
-            if let Some(render_data) = &ref_render_data[i] {
-                if render_data.type_id() == (TypeId::of::<T>(), TypeId::of::<U>()) {
-                    drop(ref_render_data);
+        // let ref_render_data = self.render_data.borrow();
+        // for i in 0..ref_render_data.len() {
+        //     if let Some(render_data) = &ref_render_data[i] {
+        //         if render_data.type_id() == (TypeId::of::<T>(), TypeId::of::<U>()) {
+        //             drop(ref_render_data);
 
-                    let layer_render_data = self.render_data.borrow_mut()[i].take().unwrap();
-                    let layer_render_data = Self::transmute_layer_render_data::<T, U>(layer_render_data);
-                    
-                    return Ok(layer_render_data.add_mesh(mesh));
-                }
-            }
-        }
+        //             let layer_render_data = self.render_data.borrow_mut()[i].take().unwrap();
+        //             let layer_render_data = Self::transmute_layer_render_data::<T, U>(layer_render_data);
+                       // TODO return render_data to vec
+        //             return Ok(layer_render_data.add_mesh(mesh));
+        //         }
+        //     }
+        // }
 
-        drop(ref_render_data);
+        // drop(ref_render_data);
 
         let layer_render_data = LayerRenderData::new(
             Arc::clone(&self.device),
@@ -92,7 +92,31 @@ impl Layer {
         let handle = layer_render_data.add_mesh(mesh);
         self.render_data.borrow_mut().push(Some(Box::new(layer_render_data)));
 
-        Ok(handle)
+        handle
+    }
+
+    pub fn add_render_data_by_index<T, U>(
+        &self, 
+        index: usize,
+        mesh: Rc<Mesh<T>>,
+    ) -> LayerRenderDataHandle<T, U>
+        where T: Clone + 'static,
+              [T]: BufferContents,
+              U: RenderState<T> + 'static,
+    {
+        let layer_render_data = self.render_data.borrow_mut()[index]
+            .take()
+            .expect("invalid layer render data index");
+
+        if (*layer_render_data).type_id() != (TypeId::of::<T>(), TypeId::of::<U>()) {
+            panic!("invalid handle type");
+        }
+
+        let layer_render_data = Self::transmute_layer_render_data::<T, U>(layer_render_data);
+        let handle = layer_render_data.add_mesh(mesh);
+
+        self.render_data.borrow_mut()[index] = Some(layer_render_data);
+        handle
     }
 
     pub fn remove_render_data<T, U>(&self, handle: LayerRenderDataHandle<T, U>) -> Rc<Mesh<T>> 
@@ -114,7 +138,8 @@ impl Layer {
         
         if !layer_render_data.has_owners() {
             if self.render_data.borrow().len() < 2 
-                || self.render_data.borrow().len() == handle.layer_render_data_index() + 1 {
+                || self.render_data.borrow().len() == handle.layer_render_data_index() + 1
+            {
                 self.render_data.borrow_mut().remove(handle.layer_render_data_index());
                 return mesh;
             }

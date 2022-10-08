@@ -54,7 +54,7 @@ impl Object for Label {
     }
 
     fn add_in_layer(&self, _: &Va, layer: &Rc<Layer>) -> anyhow::Result<()> {
-        layer.add_render_data(self.mesh.borrow_mut().take().unwrap(), Rc::clone(&self.render_state))?;
+        layer.add_render_data(self.mesh.borrow_mut().take().unwrap(), Rc::clone(&self.render_state));
         Ok(())
     }
 
