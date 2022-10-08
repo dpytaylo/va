@@ -33,7 +33,7 @@ pub trait AbstractLayerRenderData {
 }
 
 pub struct LayerRenderData<T, U> 
-    where T: Clone + 'static,
+    where T: Clone,
           [T]: BufferContents,
           U: RenderState<T>,
 {
@@ -57,7 +57,7 @@ pub enum LayerRenderDataError {
 }
 
 impl<T, U> LayerRenderData<T, U> 
-    where T: Clone + 'static,
+    where T: Clone,
           [T]: BufferContents,
           U: RenderState<T>,
 {
@@ -67,15 +67,6 @@ impl<T, U> LayerRenderData<T, U>
         render_state: Rc<U>,
     ) -> Self
     {
-        // let vertex_buffer = CpuAccessibleBuffer::from_iter(
-        //     Arc::clone(&device),
-        //     BufferUsage::all(),
-        //     false,
-        //     mesh.vertices().iter().map(|val| val.clone()),
-        // )?;
-
-        // let raw_handle = RawLayerRenderDataHandle::new(layer_render_data_index, 0);
-
         Self {
             device,
 

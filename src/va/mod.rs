@@ -11,8 +11,6 @@ pub mod time;
 pub mod window;
 
 // abcdefghijklmnopqrstuvwxyz
-use std::rc::Rc;
-
 use env_logger::Target;
 use log::{error, LevelFilter};
 use winit::{

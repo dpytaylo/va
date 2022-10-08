@@ -18,12 +18,11 @@ pub struct WindowGraphics {
 impl WindowGraphics {
     pub fn new(
         device: Arc<Device>,
-        queue: Arc<Queue>,
         surface: Arc<Surface<winit::window::Window>>,
     ) -> anyhow::Result<Self> 
     {
         let (swapchain, images) =
-            WindowGraphics::create_swapchain(device, queue, Arc::clone(&surface))?;
+            WindowGraphics::create_swapchain(device, Arc::clone(&surface))?;
 
         Ok(Self {
             surface,
@@ -62,7 +61,6 @@ impl WindowGraphics {
 
     pub fn create_swapchain(
         device: Arc<Device>,
-        queue: Arc<Queue>,
         surface: Arc<Surface<winit::window::Window>>,
     ) -> anyhow::Result<(
         Arc<Swapchain<winit::window::Window>>,

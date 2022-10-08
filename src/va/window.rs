@@ -91,12 +91,7 @@ impl Window {
             None => return Err(WindowCreationError::NoDeviceAvailaible),
         };
 
-        let queue = match va.graphics.queue() {
-            Some(val) => Arc::clone(&val),
-            None => return Err(WindowCreationError::NoQueueAvailable),
-        };
-
-        let graphics = WindowGraphics::new(Arc::clone(&device), queue, surface)?;
+        let graphics = WindowGraphics::new(Arc::clone(&device), surface)?;
         let render = WindowRender::new(device, &graphics)?;
 
         let window = Rc::new(Self {

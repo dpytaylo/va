@@ -12,29 +12,19 @@ use anyhow::{bail, Context};
 use log::info;
 use png::{BitDepth, ColorType};
 use thiserror::Error;
-use ttf_parser::Face;
 
 use vulkano::device::Device;
 use vulkano::format::Format;
 use vulkano::image::view::ImageView;
 use vulkano::image::{ImageDimensions, ImmutableImage, MipmapsCount};
 use vulkano::pipeline::GraphicsPipeline;
-use vulkano::pipeline::graphics::color_blend::ColorBlendState;
-use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
-use vulkano::pipeline::graphics::vertex_input::BuffersDefinition;
-use vulkano::render_pass::{Subpass, RenderPass};
 use vulkano::shader::{ShaderCreationError, ShaderModule};
 
 use crate::graphics::buffer::buffer2d::{Buffer2d, Buffer2dRead, save_buffer};
 use crate::graphics::font::{self, Font};
-use crate::graphics::glyph_render::GlyphRenderBuilder;
 use crate::graphics::image::save_image;
-use crate::graphics::rasterizate::SimpleRasterizate;
 use crate::utils::cast::Cast;
-use crate::utils::math::geometry::rect::Rect;
-use crate::utils::math::matrix::matrix3x3::Mat3x3;
 use crate::utils::math::vector::vector2::Vec2;
-use crate::utils::math::vector::vector3::Vec3;
 use crate::utils::math::vector::vector4::Vec4;
 use crate::utils::number::{Number, Float};
 
