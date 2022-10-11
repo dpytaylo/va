@@ -21,7 +21,7 @@ pub trait Buffer2dRead<T = Self> {
 }
 
 pub trait Buffer2dWrite<T = Self>: Buffer2dRead<T> {
-    fn set_value(&mut self, position: Vec2<usize>, value: T);
+    unsafe fn set_value(&mut self, position: Vec2<usize>, value: T);
 }
 
 #[derive(Debug, Default)]
@@ -160,7 +160,7 @@ impl<T> Buffer2dRead<T> for Buffer2d<T>
 impl<T> Buffer2dWrite<T> for Buffer2d<T>
     where T: Clone,
 {
-    fn set_value(&mut self, position: Vec2<usize>, value: T) {
+    unsafe fn set_value(&mut self, position: Vec2<usize>, value: T) {
         self.buffer[self.size.x * position.y + position.x] = value;
     }
 }
@@ -262,7 +262,7 @@ impl<'a, T> Buffer2dRead<T> for Buffer2dMutSlice<'a, T>
 impl<'a, T> Buffer2dWrite<T> for Buffer2dMutSlice<'a, T>
     where T: Clone
 {
-    fn set_value(&mut self, position: Vec2<usize>, value: T) {
+    unsafe fn set_value(&mut self, position: Vec2<usize>, value: T) {
         self.buffer.set_value(self.rect.p1 + position, value);
     }
 }

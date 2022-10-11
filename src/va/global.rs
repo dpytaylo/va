@@ -1,9 +1,7 @@
-use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
 
-use env_logger::Target;
-use log::LevelFilter;
-use winit::event_loop::{EventLoop, EventLoopWindowTarget};
+use winit::event_loop::EventLoopWindowTarget;
 
 use crate::time::Time;
 

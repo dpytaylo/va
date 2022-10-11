@@ -1,8 +1,5 @@
 use std::cmp::max;
 use std::collections::HashMap;
-use std::collections::hash_map::DefaultHasher;
-use std::future::Future;
-use std::hash::Hash;
 use std::sync::Arc;
 
 use anyhow::{bail, Context};
@@ -11,9 +8,8 @@ use vulkano::command_buffer::{CommandBufferExecFuture, PrimaryAutoCommandBuffer}
 use vulkano::device::Queue;
 use vulkano::format::Format;
 use vulkano::image::{ImmutableImage, ImageDimensions, MipmapsCount};
-use vulkano::sync::{GpuFuture, NowFuture};
+use vulkano::sync::NowFuture;
 
-use crate::graphics::buffer;
 use crate::graphics::buffer::buffer2d::Buffer2dRead;
 use crate::utils::cast::Cast;
 use crate::utils::math::geometry::rect::Rect;

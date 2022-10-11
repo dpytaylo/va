@@ -12,7 +12,6 @@ use vulkano::memory::DeviceMemoryAllocationError;
 use crate::graphics::mesh::Mesh;
 use crate::graphics::layer_render_data::{LayerRenderData, AbstractLayerRenderData};
 use crate::graphics::layer_render_data_handle::LayerRenderDataHandle;
-use crate::graphics::render_data::RenderData;
 use crate::graphics::render_state::RenderState;
 use crate::object::Object;
 
@@ -63,26 +62,10 @@ impl Layer {
     }
 
     pub fn add_render_data<T, U>(&self, mesh: Rc<Mesh<T>>, render_state: Rc<U>) -> LayerRenderDataHandle<T, U>
-        where T: Clone + 'static,
+        where T: Clone,
               [T]: BufferContents,
               U: RenderState<T> + 'static,
     {
-        // let ref_render_data = self.render_data.borrow();
-        // for i in 0..ref_render_data.len() {
-        //     if let Some(render_data) = &ref_render_data[i] {
-        //         if render_data.type_id() == (TypeId::of::<T>(), TypeId::of::<U>()) {
-        //             drop(ref_render_data);
-
-        //             let layer_render_data = self.render_data.borrow_mut()[i].take().unwrap();
-        //             let layer_render_data = Self::transmute_layer_render_data::<T, U>(layer_render_data);
-                       // TODO return render_data to vec
-        //             return Ok(layer_render_data.add_mesh(mesh));
-        //         }
-        //     }
-        // }
-
-        // drop(ref_render_data);
-
         let layer_render_data = LayerRenderData::new(
             Arc::clone(&self.device),
             self.render_data.borrow().len(),
@@ -100,7 +83,7 @@ impl Layer {
         index: usize,
         mesh: Rc<Mesh<T>>,
     ) -> LayerRenderDataHandle<T, U>
-        where T: Clone + 'static,
+        where T: Clone,
               [T]: BufferContents,
               U: RenderState<T> + 'static,
     {
@@ -120,7 +103,7 @@ impl Layer {
     }
 
     pub fn remove_render_data<T, U>(&self, handle: LayerRenderDataHandle<T, U>) -> Rc<Mesh<T>> 
-        where T: Clone + 'static,
+        where T: Clone,
               [T]: BufferContents,
               U: RenderState<T> + 'static,
     {
@@ -155,9 +138,9 @@ impl Layer {
     }
 
     fn transmute_layer_render_data<T, U>(layer_render_data: Box<dyn AbstractLayerRenderData>) -> Box<LayerRenderData<T, U>> 
-        where T: Clone + 'static,
-             [T]: BufferContents,
-             U: RenderState<T> + 'static,
+        where T: Clone,
+              [T]: BufferContents,
+              U: RenderState<T>,
     {
         unsafe {
             let (val, _) = mem::transmute::<_, (*mut LayerRenderData<T, U>, usize)>(Box::into_raw(layer_render_data));
@@ -174,62 +157,6 @@ impl Layer {
 
         Ok(())
     }
-
-    // pub fn create_render_object_(
-    //     layer: Rc<Self>,
-    //     mesh: Rc<Mesh<f32>>,
-    //     render_state: Rc<dyn RenderState<f32>>,
-    // ) -> Result<RenderObject, DeviceMemoryAllocError> 
-    // {
-    //     let (data_render_state_pointer, _) = unsafe { 
-    //         mem::transmute::<_, (*const usize, *const usize)>(Rc::clone(&render_state))
-    //     };
-
-    //     let render_data = {
-    //         let ref_render_data = layer.render_data.borrow();
-    //         let render_data = ref_render_data
-    //             .iter()
-    //             .find(|val| ptr::eq(Rc::as_ptr(val.render_state()) as *const usize, data_render_state_pointer));
-
-    //         render_data.map(|val| Rc::clone(val))
-    //     };
-
-    //     let render_data = match render_data {
-    //         Some(val) => val,
-    //         None => {
-    //             let render_data = LayerRenderData::new(
-    //                 Rc::clone(&layer.graphics),
-    //                 Rc::clone(&layer),
-    //                 vec![],
-    //                 render_state,
-    //             )?;
-
-    //             layer.render_data.borrow_mut().push(Rc::clone(&render_data));
-    //             render_data
-    //         }
-    //     };
-
-    //     render_data.add_mesh(Rc::clone(&mesh));
-    //     render_data.update_vertex_buffer()?;
-    //     let render_object = RenderObject::new(mesh,Rc::clone(&render_data));
-
-    //     Ok(render_object)
-    // }
-
-    // pub unsafe fn remove_render_data(&self, render_data: &LayerRenderData) -> Result<(), ()> {
-    //     let index = self
-    //         .render_data
-    //         .borrow()
-    //         .iter()
-    //         .position(|val| ptr::eq(Rc::as_ref(val), render_data));
-
-    //     if index.is_none() {
-    //         return Err(());
-    //     }
-
-    //     self.render_data.borrow_mut().swap_remove(index.unwrap());
-    //     Ok(())
-    // }
 
     pub fn objects(&self) -> Ref<Vec<Rc<dyn Object>>> {
         self.objects.borrow()

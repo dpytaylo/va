@@ -49,10 +49,12 @@ pub trait SimpleRasterizate<T>: Buffer2dWrite<T>
             return;
         }
 
-        self.set_value(
-            point.cast(),
-            value,
-        );
+        unsafe {
+            self.set_value(
+                point.cast(),
+                value,
+            );
+        }
     }
 
     fn draw_horizontal_line(&mut self, x0: i32, x1: i32, y: i32, value: T) {

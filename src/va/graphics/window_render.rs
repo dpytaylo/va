@@ -13,7 +13,6 @@ use vulkano::render_pass::{Framebuffer, RenderPass, RenderPassCreationError, Fra
 use vulkano::swapchain::{self, AcquireError, SwapchainCreationError, SwapchainCreateInfo};
 use vulkano::sync::{self, FlushError, GpuFuture};
 
-use crate::global::Va;
 use crate::va::layer::Layer;
 
 use super::Graphics;
