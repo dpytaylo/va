@@ -99,6 +99,14 @@ impl<T> From<Vec3<T>> for (T, T, T)
     }
 }
 
+impl<T> From<Vec3<T>> for [T; 3]
+    where T: Number,
+{
+    fn from(value: Vec3<T>) -> Self {
+        [value[0], value[1], value[2]]
+    }
+}
+
 impl<T> FromIterator<T> for Vec3<T>
     where T: Number,
 {
@@ -232,6 +240,9 @@ mod tests {
 
         let tmp = Vec3::from([1, 2, 3]);
         assert_eq!(tmp, vector);
+
+        let tmp: [i32; 3] = tmp.into();
+        assert_eq!(tmp, [1, 2, 3]);
 
         let array = [1, 2, 3, 4, 5, 6];
         let tmp = Vec3::from(&array[0..LENGTH]);

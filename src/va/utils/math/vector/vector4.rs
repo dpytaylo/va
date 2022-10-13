@@ -118,6 +118,14 @@ impl<T> From<Vec4<T>> for (T, T, T, T)
     }
 }
 
+impl<T> From<Vec4<T>> for [T; 4]
+    where T: Number,
+{
+    fn from(value: Vec4<T>) -> Self {
+        [value[0], value[1], value[2], value[3]]
+    }
+}
+
 impl<T> FromIterator<T> for Vec4<T>
     where T: Number,
 {
@@ -262,6 +270,9 @@ mod tests {
 
         let tmp = Vec4::from([1, 2, 3, 4]);
         assert_eq!(tmp, vector);
+
+        let tmp: [i32; 4] = tmp.into();
+        assert_eq!(tmp, [1, 2, 3, 4]);
 
         let array = [1, 2, 3, 4, 5, 6];
         let tmp = Vec4::from(&array[0..LENGTH]);

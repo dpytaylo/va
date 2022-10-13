@@ -20,7 +20,7 @@ pub struct Va {
 }
 
 impl Va {
-    pub fn new(event_loop_window_target: &EventLoopWindowTarget<()>) -> anyhow::Result<Self> {
+    pub fn new(event_loop_window_target: &EventLoopWindowTarget<()>) -> anyhow::Result<Rc<Self>> {
         let graphics = Graphics::new()?;
         let manager = Manager::new(Rc::clone(&graphics));
 
@@ -40,7 +40,7 @@ impl Va {
 
         // TODO
         va.graphics.setup_device_and_queues(va.event_loop_window_target())?;
-        Ok(va)
+        Ok(Rc::new(va))
     }
 
     pub fn event_loop_window_target(&self) -> &EventLoopWindowTarget<()> {

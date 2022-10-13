@@ -19,11 +19,11 @@ pub trait Object {
         Ok(())
     }
 
-    fn add_in_layer(&self, va: &Va, layer: &Rc<Layer>) -> anyhow::Result<()> {
+    fn add_in_layer(&self, va: &Va, layer: &Layer) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn remove_from_layer(&self, va: &Va, layer: &Rc<Layer>) -> anyhow::Result<()> {
+    fn remove_from_layer(&self, va: &Va, layer: &Layer) -> anyhow::Result<()> {
         Ok(())
     }
 

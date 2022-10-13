@@ -35,7 +35,7 @@ pub struct Font {
 
 #[derive(Clone, Copy)]
 pub struct CharInfo {
-    bounding_box: Rect<i32>,
+    pub bounding_box: Rect<i32>,
 }
 
 impl CharInfo {
