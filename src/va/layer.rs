@@ -4,11 +4,13 @@ use std::mem;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use anyhow::{Context, bail};
 use thiserror::Error;
 use vulkano::buffer::BufferContents;
 use vulkano::device::Device;
 use vulkano::memory::DeviceMemoryAllocationError;
 
+use crate::global::Va;
 use crate::graphics::mesh::Mesh;
 use crate::graphics::layer_render_data::{LayerRenderData, AbstractLayerRenderData};
 use crate::graphics::layer_render_data_handle::LayerRenderDataHandle;
@@ -16,6 +18,7 @@ use crate::graphics::render_state::RenderState;
 use crate::object::Object;
 
 pub struct Layer {
+    va: Rc<Va>,
     device: Arc<Device>,
     objects: RefCell<Vec<Rc<dyn Object>>>,
     render_data: RefCell<Vec<Option<Box<dyn AbstractLayerRenderData>>>>,
@@ -29,11 +32,13 @@ pub enum LayerError {
 
 impl Layer {
     pub fn new(
-        device: Arc<Device>,
+        va: Rc<Va>,
         objects: Vec<Rc<dyn Object>>,
         mut render_data: Vec<Option<Box<dyn AbstractLayerRenderData>>>,
-    ) -> Rc<Self> 
+    ) -> anyhow::Result<Rc<Self>> 
     {
+        let device = va.graphics.device().context("no device")?;
+
         let mut indices = Vec::new();
         for i in 0..render_data.len() {
             match render_data[i].as_ref() {
@@ -54,11 +59,49 @@ impl Layer {
             render_data[i].as_ref().unwrap().update_layer_render_data_index(i);
         }
 
-        Rc::new(Self {
+        let layer = Rc::new(Self {
+            va: va,
             device,
             objects: RefCell::new(objects),
             render_data: RefCell::new(render_data),
-        })
+        });
+
+        for object in layer.objects.borrow().iter() {
+            object.add_in_layer(&layer.va, &layer)?;
+        }
+
+        Ok(layer)
+    }
+
+    pub fn add_object<T>(&self, object: Rc<dyn Object>) -> anyhow::Result<()> {
+        self.objects.borrow_mut().push(Rc::clone(&object));
+        object.add_in_layer(&self.va, &self)?;
+        Ok(())
+    }
+
+    pub fn objects(&self) -> Ref<Vec<Rc<dyn Object>>> {
+        self.objects.borrow()
+    }
+
+    pub fn remove_all_objects(&self) -> anyhow::Result<Vec<Rc<dyn Object>>> {
+        let objects = self.objects.borrow_mut();
+
+        let mut errors = Vec::new();
+        for object in objects.iter() {
+            let _ = object.remove_from_layer(&self.va, &self).map_err(|err| errors.push(err));
+        }
+
+        if !errors.is_empty() {
+            let mut buffer = String::new();
+            
+            for error in errors {
+                buffer = format!("{buffer}; {}", error.to_string());
+            }
+
+            bail!("{buffer}");
+        }
+
+        Ok(mem::replace(&mut self.objects.borrow_mut(), Vec::new()))
     }
 
     pub fn add_render_data<T, U>(&self, mesh: Rc<Mesh<T>>, render_state: Rc<U>) -> LayerRenderDataHandle<T, U>
@@ -158,11 +201,15 @@ impl Layer {
         Ok(())
     }
 
-    pub fn objects(&self) -> Ref<Vec<Rc<dyn Object>>> {
-        self.objects.borrow()
-    }
-
     pub fn render_data(&self) -> Ref<Vec<Option<Box<dyn AbstractLayerRenderData>>>> {
         self.render_data.borrow()
+    }
+}
+
+impl Drop for Layer {
+    fn drop(&mut self) {
+        for object in self.objects().iter() {
+            object.remove_from_layer(&self.va, &self).unwrap(); // TODO
+        }
     }
 }

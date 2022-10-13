@@ -10,6 +10,8 @@ pub mod object;
 pub mod time;
 pub mod window;
 
+use std::rc::Rc;
+
 // abcdefghijklmnopqrstuvwxyz
 use env_logger::Target;
 use log::{error, LevelFilter};
@@ -23,16 +25,13 @@ use graphics::render::Render;
 use global::Va;
 
 pub trait MainLoop {
-    fn run(
-        &mut self, // event: Event<()>,
-                   // control_flow: &mut ControlFlow
-    );
+    fn run(&mut self, va: &Rc<Va>);
 }
 
 pub struct DefaultMainLoop;
 
 impl MainLoop for DefaultMainLoop {
-    fn run(&mut self) 
+    fn run(&mut self, va: &Rc<Va>) 
     {
         // do nothing
     }
@@ -40,14 +39,14 @@ impl MainLoop for DefaultMainLoop {
 
 #[derive(Default)]
 pub struct Application<T = ()> 
-    where T: FnOnce(&Va),
+    where T: FnOnce(&Rc<Va>) -> anyhow::Result<()>,
 {
     initialize_closure: Option<T>,
     main_loop: Option<Box<dyn MainLoop>>,
 }
 
 impl<T> Application<T> 
-    where T: FnOnce(&Va),
+    where T: FnOnce(&Rc<Va>) -> anyhow::Result<()>,
 {
     pub fn new() -> Self {
         Self {
@@ -96,7 +95,7 @@ impl<T> Application<T>
             *control_flow = ControlFlow::Wait;
             
             va.graphics.update();
-            main_loop.run();
+            main_loop.run(&va);
 
             match event {
                 Event::WindowEvent {

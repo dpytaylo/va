@@ -68,6 +68,14 @@ impl<T> From<Vec2<T>> for (T, T)
     }
 }
 
+impl<T> From<Vec2<T>> for [T; 2]
+    where T: Number,
+{
+    fn from(value: Vec2<T>) -> Self {
+        [value[0], value[1]]
+    }
+}
+
 impl<T> FromIterator<T> for Vec2<T>
     where T: Number,
 {
@@ -194,6 +202,9 @@ mod tests {
 
         let tmp = Vec2::from([1, 2]);
         assert_eq!(tmp, vector);
+
+        let tmp: [i32; 2] = tmp.into();
+        assert_eq!(tmp, [1, 2]);
 
         let array = [1, 2, 3, 4, 5, 6];
         let tmp = Vec2::from(&array[0..LENGTH]);

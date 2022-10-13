@@ -31,8 +31,8 @@ pub struct LabelRenderState {
 #[repr(C)]
 #[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct LabelRenderStateVertex {
-    position: [f32; 2],
-    tex_coords: [f32; 2],
+    pub position: [f32; 2],
+    pub tex_coords: [f32; 2],
 }
 vulkano::impl_vertex!(LabelRenderStateVertex, position, tex_coords);
 
@@ -99,11 +99,11 @@ impl LabelRenderState {
     }
 }
 
-impl RenderState<Vec2<f32>> for LabelRenderState {
+impl RenderState<LabelRenderStateVertex> for LabelRenderState {
     fn command_buffer(
         &self,
         graphics: &Rc<Graphics>,
-        buffer: &Arc<CpuAccessibleBuffer<[Vec2<f32>]>>,
+        buffer: &Arc<CpuAccessibleBuffer<[LabelRenderStateVertex]>>,
         framebuffer: Arc<Framebuffer>,
         viewport: Viewport,
     ) -> anyhow::Result<PrimaryAutoCommandBuffer> 
